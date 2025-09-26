@@ -35,7 +35,17 @@ export const ContractRevisionEditor = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showOriginal, setShowOriginal] = useState(true);
 
+  // Debug logging
+  console.log('📝 ContractRevisionEditor mounted with:', {
+    contractId: originalContract.id,
+    contractStatus: originalContract.status,
+    createdBy: originalContract.created_by,
+    revisionNumber: originalContract.revision_number
+  });
+
   const handleSubmit = async () => {
+    console.log('🚀 Submitting contract revision...');
+    
     if (!revisedContent.trim()) {
       toast.error('Contract content cannot be empty');
       return;
@@ -43,17 +53,19 @@ export const ContractRevisionEditor = ({
 
     setIsSubmitting(true);
     try {
+      console.log('📤 Calling createRevisedContract...');
       await createRevisedContract(
         originalContract,
         revisedContent,
         revisedTerms || undefined
       );
       
+      console.log('✅ Contract revision successful');
       toast.success('Revised contract sent successfully!');
       onRevisionSent?.();
       onClose();
     } catch (error: any) {
-      console.error('Error creating revised contract:', error);
+      console.error('❌ Error creating revised contract:', error);
       toast.error(error.message || 'Failed to send revised contract');
     } finally {
       setIsSubmitting(false);

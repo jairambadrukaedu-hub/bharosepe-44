@@ -1,33 +1,47 @@
-# Welcome to your Lovable project
+# Bharose - Contract Management System
 
-## Project info
+A secure, escrow-based contract management system with contract revision capabilities.
 
-**URL**: https://lovable.dev/projects/ce18c92e-bf9d-4696-bd5a-83a160ddaddc
+## Features
 
-## How can I edit this code?
+- **Contract Creation & Management**: Create, send, and manage digital contracts
+- **Contract Revision System**: Edit and resend rejected contracts
+- **Escrow System**: Secure payment handling with dispute resolution
+- **Real-time Updates**: Live contract status updates
+- **User Authentication**: Secure login and profile management
 
-There are several ways of editing your application.
+## Deployment on Render
 
-**Use Lovable**
+This app is configured for automatic deployment on Render using the `render.yaml` configuration.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/ce18c92e-bf9d-4696-bd5a-83a160ddaddc) and start prompting.
+### Environment Variables
 
-Changes made via Lovable will be committed automatically to this repo.
+The following environment variables are configured:
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY` 
+- `VITE_SUPABASE_PROJECT_ID`
 
-**Use your preferred IDE**
+## Development
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+```bash
+# Install dependencies
+npm install --legacy-peer-deps
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+# Start development server
+npm run dev
 
-Follow these steps:
+# Build for production
+npm run build
+```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## Testing Contract Revisions
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+1. Create a contract between two users
+2. Reject the contract as the recipient with a reason
+3. Login as the sender and click "Edit & Resend Contract"
+4. Make changes and submit - a new revised contract is created
+
+Check browser console for debug messages starting with 🔄, 🧑, 👨‍💼, 📋, ✅, ❌
 
 # Step 3: Install the necessary dependencies.
 npm i

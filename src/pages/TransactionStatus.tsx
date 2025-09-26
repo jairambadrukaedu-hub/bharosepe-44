@@ -36,7 +36,7 @@ const TransactionStatus = () => {
   const { userMode } = useUserModeContext();
   const { transactions, loading, updateTransactionStatus } = useTransactions(userMode as 'Buyer' | 'Seller');
   const { getEscalationByTransactionId } = useEscalations();
-  const { contracts } = useContracts();
+  const { contracts, getLatestRejectedContract } = useContracts();
   
   const [contractIdForTx, setContractIdForTx] = useState<string | null>(null);
   const [originalContract, setOriginalContract] = useState<any>(null);
@@ -46,8 +46,37 @@ const TransactionStatus = () => {
   
   // Fetch related contract id and original contract data
   useEffect(() => {
-    if (!id) return;
+    if (!id || !contracts.length) return;
+    
+    // For revision purposes, use the helper function to get the latest rejected contract
+    const latestRejectedContract = getLatestRejectedContract(id);
+    
+    if (latestRejectedContract) {
+      console.log('📝 Found rejected contract for revision:', latestRejectedContract.id);
+      setContractIdForTx(latestRejectedContract.id);
+      setOriginalContract(latestRejectedContract);
+      return;
+    }
+
+    // Fallback: load contract data from database if not found in hook
     const load = async () => {
+      // First, try to find a rejected contract
+      let { data: rejectedContract, error: rejectedError } = await supabase
+        .from('contracts')
+        .select('*')
+        .eq('transaction_id', id)
+        .eq('status', 'rejected')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (rejectedContract && !rejectedError) {
+        console.log('📝 Found rejected contract from DB:', rejectedContract.id);
+        setContractIdForTx(rejectedContract.id);
+        setOriginalContract(rejectedContract);
+        return;
+      }
+
       // Get active contract first; if none, fall back to latest contract
       let { data, error } = await supabase
         .from('contracts')
@@ -67,17 +96,18 @@ const TransactionStatus = () => {
           .limit(1)
           .maybeSingle();
         if (!latestError && latest) {
+          console.log('📝 Using latest contract:', latest.id);
           setContractIdForTx(latest.id);
           setOriginalContract(latest);
         }
       } else if (data) {
+        console.log('📝 Using active contract:', data.id);
         setContractIdForTx(data.id);
         setOriginalContract(data);
       }
-
     };
     load();
-  }, [id]);
+  }, [id, contracts, getLatestRejectedContract]);
 
   // Fetch dispute data if transaction is disputed
   useEffect(() => {
@@ -456,11 +486,31 @@ const TransactionStatus = () => {
                       : 'You rejected this contract. The buyer can edit and resend a new version.'
                     }
                   </p>
-                  {transaction.role === 'buyer' && (
+                  {transaction.role === 'buyer' && originalContract && (
                     <button 
                       className="bharose-primary-button w-full"
                       onClick={() => {
-                        // This will trigger the ContractRevisionEditor
+                        console.log('🔄 Edit & Resend clicked');
+                        console.log('🧑 User ID:', user?.id);
+                        console.log('👨‍💼 Contract creator:', originalContract.created_by);
+                        console.log('📋 Contract status:', originalContract.status);
+                        
+                        // Additional validation before opening revision editor
+                        if (!originalContract) {
+                          toast.error('No contract found for revision');
+                          return;
+                        }
+                        
+                        if (originalContract.created_by !== user?.id) {
+                          toast.error('You can only revise contracts you created');
+                          return;
+                        }
+                        
+                        if (originalContract.status !== 'rejected') {
+                          toast.error('Only rejected contracts can be revised');
+                          return;
+                        }
+                        
                         setShowContractRevision(true);
                       }}
                     >
