@@ -11,7 +11,7 @@ import { useProfile } from '@/hooks/use-profile';
 const ProfileSetup = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { profile, updateProfile } = useProfile();
+  const { profile, updateProfile, createProfile } = useProfile();
   const [formData, setFormData] = useState({
     fullName: '',
     businessName: '',
@@ -22,6 +22,9 @@ const ProfileSetup = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    console.log('ProfileSetup - User:', user);
+    console.log('ProfileSetup - Profile:', profile);
+    
     if (user && profile) {
       setFormData({
         fullName: profile.full_name || user.user_metadata?.full_name || '',
@@ -45,6 +48,8 @@ const ProfileSetup = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('ProfileSetup - Submitting form with data:', formData);
+    
     if (!formData.fullName) {
       toast.error('Please enter your full name');
       return;
@@ -63,17 +68,30 @@ const ProfileSetup = () => {
     setLoading(true);
     
     try {
-      await updateProfile({
+      const profileData = {
         full_name: formData.fullName,
         phone: formData.phone,
         role: formData.profileType === 'both' ? 'Buyer' : formData.profileType
-      });
+      };
+
+      console.log('ProfileSetup - Profile data to save:', profileData);
+
+      // Try to update first, if it fails, create new profile
+      try {
+        console.log('ProfileSetup - Attempting to update profile');
+        await updateProfile(profileData);
+        console.log('ProfileSetup - Profile updated successfully');
+      } catch (updateError) {
+        console.log('ProfileSetup - Profile update failed, trying to create new profile:', updateError);
+        await createProfile(profileData);
+        console.log('ProfileSetup - Profile created successfully');
+      }
       
       toast.success('Profile updated successfully!');
       navigate('/dashboard');
     } catch (error) {
-      toast.error('Failed to update profile');
-      console.error('Profile update error:', error);
+      console.error('ProfileSetup - Profile setup error:', error);
+      toast.error('Failed to update profile. Please try again.');
     } finally {
       setLoading(false);
     }

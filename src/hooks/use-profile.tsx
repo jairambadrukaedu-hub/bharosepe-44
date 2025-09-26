@@ -20,7 +20,12 @@ export const useProfile = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('useProfile - No user, skipping profile fetch');
+      return;
+    }
+
+    console.log('useProfile - Fetching profile for user:', user.id);
 
     try {
       setLoading(true);
@@ -31,14 +36,21 @@ export const useProfile = () => {
         .eq('user_id', user.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
+      console.log('useProfile - Fetch result:', { data, error });
 
-      setProfile(data);
+      if (error && error.code !== 'PGRST116') {
+        console.error('useProfile - Error fetching profile:', error);
+        // Only show error toast if it's not a "no rows returned" error
+        if (error.code !== 'PGRST116') {
+          toast.error('Failed to load profile');
+        }
+      } else {
+        console.log('useProfile - Setting profile data:', data);
+        setProfile(data);
+      }
     } catch (error: any) {
-      console.error('Error fetching profile:', error);
-      toast.error('Failed to load profile');
+      console.error('useProfile - Error fetching profile:', error);
+      // Don't show toast error for missing profile - it's normal for new users
     } finally {
       setLoading(false);
     }
