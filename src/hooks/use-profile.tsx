@@ -22,6 +22,7 @@ export const useProfile = () => {
   const fetchProfile = async () => {
     if (!user) {
       console.log('useProfile - No user, skipping profile fetch');
+      setLoading(false);
       return;
     }
 
@@ -38,19 +39,22 @@ export const useProfile = () => {
 
       console.log('useProfile - Fetch result:', { data, error });
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('useProfile - Error fetching profile:', error);
-        // Only show error toast if it's not a "no rows returned" error
-        if (error.code !== 'PGRST116') {
-          toast.error('Failed to load profile');
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No profile found - this is expected for new users
+          console.log('useProfile - No profile found, user needs to create one');
+          setProfile(null);
+        } else {
+          console.error('useProfile - Database error fetching profile:', error);
+          toast.error('Failed to load profile: ' + error.message);
         }
       } else {
         console.log('useProfile - Setting profile data:', data);
         setProfile(data);
       }
     } catch (error: any) {
-      console.error('useProfile - Error fetching profile:', error);
-      // Don't show toast error for missing profile - it's normal for new users
+      console.error('useProfile - Unexpected error fetching profile:', error);
+      toast.error('Unexpected error loading profile');
     } finally {
       setLoading(false);
     }
@@ -65,12 +69,20 @@ export const useProfile = () => {
     if (!user) throw new Error('User not authenticated');
 
     try {
+      console.log('useProfile - Updating profile with data:', updates);
+      
       // Validate phone number if provided
       if (updates.phone) {
-        const phoneRegex = /^\d{10}$/;
-        if (!phoneRegex.test(updates.phone.replace(/\D/g, ''))) {
+        const cleanPhone = updates.phone.replace(/\D/g, '');
+        if (cleanPhone.length !== 10) {
           throw new Error('Please enter a valid 10-digit phone number');
         }
+        updates.phone = cleanPhone;
+      }
+
+      // Validate full name if provided
+      if (updates.full_name !== undefined && !updates.full_name?.trim()) {
+        throw new Error('Full name cannot be empty');
       }
 
       const { data, error } = await supabase
@@ -80,14 +92,19 @@ export const useProfile = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('useProfile - Database error updating profile:', error);
+        throw error;
+      }
 
+      console.log('useProfile - Profile updated successfully:', data);
       setProfile(data);
       toast.success('Profile updated successfully');
       return data;
     } catch (error: any) {
-      console.error('Error updating profile:', error);
-      toast.error(error.message || 'Failed to update profile');
+      console.error('useProfile - Error updating profile:', error);
+      const errorMessage = error.message || 'Failed to update profile';
+      toast.error(errorMessage);
       throw error;
     }
   };
@@ -124,23 +141,45 @@ export const useProfile = () => {
     if (!user) throw new Error('User not authenticated');
 
     try {
+      console.log('useProfile - Creating profile with data:', profileData);
+      
+      // Validate required fields
+      if (!profileData.full_name?.trim()) {
+        throw new Error('Full name is required');
+      }
+      
+      // Validate phone number if provided
+      if (profileData.phone) {
+        const cleanPhone = profileData.phone.replace(/\D/g, '');
+        if (cleanPhone.length !== 10) {
+          throw new Error('Please enter a valid 10-digit phone number');
+        }
+      }
+      
       const { data, error } = await supabase
         .from('profiles')
         .insert({
           user_id: user.id,
-          ...profileData
+          full_name: profileData.full_name.trim(),
+          phone: profileData.phone?.replace(/\D/g, '') || null,
+          role: profileData.role || 'Buyer'
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('useProfile - Database error creating profile:', error);
+        throw error;
+      }
 
+      console.log('useProfile - Profile created successfully:', data);
       setProfile(data);
       toast.success('Profile created successfully');
       return data;
     } catch (error: any) {
-      console.error('Error creating profile:', error);
-      toast.error('Failed to create profile');
+      console.error('useProfile - Error creating profile:', error);
+      const errorMessage = error.message || 'Failed to create profile';
+      toast.error(errorMessage);
       throw error;
     }
   };

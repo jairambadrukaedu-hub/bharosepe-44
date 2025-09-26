@@ -7,6 +7,8 @@ import { UserModeProvider } from '@/components/UserModeContext';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/hooks/use-auth';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import HealthCheck from '@/components/HealthCheck';
 
 // Critical pages (loaded immediately)
 import Index from '@/pages/Index';
@@ -57,45 +59,48 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <UserModeProvider>
-        <div className={`app ${theme}`}>
-          <Router>
-            <Suspense fallback={<LoadingSpinner />}>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/splash" element={<SplashScreen />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/auth" element={<AuthPage />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                
-                <Route path="/onboarding" element={<OnboardingPage />} />
-                <Route path="/kyc-verification" element={<KycVerification />} />
-                <Route path="/profile-setup" element={<ProfileSetup />} />
-                <Route path="/transaction-setup" element={<TransactionSetup />} />
-                <Route path="/initiate-transaction" element={<InitiateTransaction />} />
-                <Route path="/ai-agreement-generation" element={<AiAgreementGeneration />} />
-                <Route path="/payment" element={<Payment />} />
-                <Route path="/transaction-status/:id" element={<TransactionStatus />} />
-                <Route path="/transactions" element={<Transactions />} />
-                <Route path="/contracts" element={<Contracts />} />
-                <Route path="/contract/:contractId" element={<ContractDetail />} />
-                <Route path="/notifications" element={<Notifications />} />
-                <Route path="/agreement-sent" element={<AgreementSent />} />
-                <Route path="/agreement/:id" element={<AgreementReceived />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/help" element={<Help />} />
-                <Route path="/listings" element={<Listings />} />
-                <Route path="/listing/:id" element={<ListingDetails />} />
-                <Route path="/dispute/:id" element={<Dispute />} />
-                <Route path="/disputes" element={<Disputes />} />
-                <Route path="/dispute-resolution/:id" element={<DisputeResolution />} />
-                <Route path="/debug-transaction" element={<DebugTransaction />} />
-                
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </Router>
-          <Toaster />
-        </div>
+        <ErrorBoundary>
+          <div className={`app ${theme}`}>
+            <Router>
+              <Suspense fallback={<LoadingSpinner />}>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/splash" element={<SplashScreen />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/auth" element={<AuthPage />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  
+                  <Route path="/onboarding" element={<OnboardingPage />} />
+                  <Route path="/kyc-verification" element={<KycVerification />} />
+                  <Route path="/profile-setup" element={<ProfileSetup />} />
+                  <Route path="/transaction-setup" element={<TransactionSetup />} />
+                  <Route path="/initiate-transaction" element={<InitiateTransaction />} />
+                  <Route path="/ai-agreement-generation" element={<AiAgreementGeneration />} />
+                  <Route path="/payment" element={<Payment />} />
+                  <Route path="/transaction-status/:id" element={<TransactionStatus />} />
+                  <Route path="/transactions" element={<Transactions />} />
+                  <Route path="/contracts" element={<Contracts />} />
+                  <Route path="/contract/:contractId" element={<ContractDetail />} />
+                  <Route path="/notifications" element={<Notifications />} />
+                  <Route path="/agreement-sent" element={<AgreementSent />} />
+                  <Route path="/agreement/:id" element={<AgreementReceived />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/help" element={<Help />} />
+                  <Route path="/listings" element={<Listings />} />
+                  <Route path="/listing/:id" element={<ListingDetails />} />
+                  <Route path="/dispute/:id" element={<Dispute />} />
+                  <Route path="/disputes" element={<Disputes />} />
+                  <Route path="/dispute-resolution/:id" element={<DisputeResolution />} />
+                  <Route path="/debug-transaction" element={<DebugTransaction />} />
+                  
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </Router>
+            <Toaster />
+            <HealthCheck />
+          </div>
+        </ErrorBoundary>
       </UserModeProvider>
     </QueryClientProvider>
   );

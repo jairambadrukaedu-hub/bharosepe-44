@@ -7,6 +7,7 @@ import Header from '@/components/Header';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/use-auth';
 import { useProfile } from '@/hooks/use-profile';
+import { testSupabaseConnection } from '@/debug/supabase-test';
 
 const ProfileSetup = () => {
   const navigate = useNavigate();
@@ -22,8 +23,12 @@ const ProfileSetup = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    console.log('ProfileSetup - Component mounted');
     console.log('ProfileSetup - User:', user);
     console.log('ProfileSetup - Profile:', profile);
+    
+    // Test Supabase connection on component mount
+    testSupabaseConnection();
     
     if (user && profile) {
       setFormData({
@@ -48,14 +53,22 @@ const ProfileSetup = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log('ProfileSetup - Submitting form with data:', formData);
+    console.log('ProfileSetup - Starting form submission');
+    console.log('ProfileSetup - Form data:', formData);
+    console.log('ProfileSetup - Current user:', user);
+    console.log('ProfileSetup - Current profile:', profile);
     
-    if (!formData.fullName) {
+    if (!user) {
+      toast.error('You must be logged in to create a profile');
+      return;
+    }
+    
+    if (!formData.fullName?.trim()) {
       toast.error('Please enter your full name');
       return;
     }
     
-    if (!formData.phone) {
+    if (!formData.phone?.trim()) {
       toast.error('Please enter your phone number');
       return;
     }
@@ -69,29 +82,49 @@ const ProfileSetup = () => {
     
     try {
       const profileData = {
-        full_name: formData.fullName,
-        phone: formData.phone,
+        full_name: formData.fullName.trim(),
+        phone: formData.phone.replace(/\D/g, ''),
         role: formData.profileType === 'both' ? 'Buyer' : formData.profileType
       };
 
       console.log('ProfileSetup - Profile data to save:', profileData);
 
-      // Try to update first, if it fails, create new profile
-      try {
-        console.log('ProfileSetup - Attempting to update profile');
-        await updateProfile(profileData);
-        console.log('ProfileSetup - Profile updated successfully');
-      } catch (updateError) {
-        console.log('ProfileSetup - Profile update failed, trying to create new profile:', updateError);
-        await createProfile(profileData);
-        console.log('ProfileSetup - Profile created successfully');
+      let success = false;
+      let result;
+
+      // If profile exists, try to update it first
+      if (profile) {
+        try {
+          console.log('ProfileSetup - Profile exists, attempting to update');
+          result = await updateProfile(profileData);
+          success = true;
+          console.log('ProfileSetup - Profile updated successfully:', result);
+        } catch (updateError) {
+          console.error('ProfileSetup - Profile update failed:', updateError);
+        }
       }
       
-      toast.success('Profile updated successfully!');
-      navigate('/dashboard');
+      // If update failed or no profile exists, create new profile
+      if (!success) {
+        try {
+          console.log('ProfileSetup - Creating new profile');
+          result = await createProfile(profileData);
+          success = true;
+          console.log('ProfileSetup - Profile created successfully:', result);
+        } catch (createError) {
+          console.error('ProfileSetup - Profile creation failed:', createError);
+          throw createError;
+        }
+      }
+      
+      if (success) {
+        toast.success('Profile saved successfully!');
+        console.log('ProfileSetup - Navigating to dashboard');
+        navigate('/dashboard');
+      }
     } catch (error) {
       console.error('ProfileSetup - Profile setup error:', error);
-      toast.error('Failed to update profile. Please try again.');
+      toast.error('Failed to save profile. Please check your internet connection and try again.');
     } finally {
       setLoading(false);
     }
