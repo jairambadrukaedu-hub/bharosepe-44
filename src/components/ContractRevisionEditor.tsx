@@ -45,28 +45,70 @@ export const ContractRevisionEditor = ({
 
   const handleSubmit = async () => {
     console.log('🚀 Submitting contract revision...');
+    console.log('📄 Original contract details:', {
+      id: originalContract.id,
+      status: originalContract.status,
+      created_by: originalContract.created_by,
+      recipient_id: originalContract.recipient_id,
+      revision_number: originalContract.revision_number,
+      parent_contract_id: originalContract.parent_contract_id,
+      is_active: originalContract.is_active
+    });
     
     if (!revisedContent.trim()) {
+      console.error('❌ Revised content is empty');
       toast.error('Contract content cannot be empty');
+      return;
+    }
+
+    if (!hasChanges) {
+      console.error('❌ No changes detected');
+      toast.error('Please make changes before sending revision');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      console.log('📤 Calling createRevisedContract...');
-      await createRevisedContract(
+      console.log('📤 Calling createRevisedContract with:', {
+        revisedContent: revisedContent.substring(0, 100) + '...',
+        revisedTerms: revisedTerms?.substring(0, 50) + '...' || 'none',
+        hasChanges
+      });
+      
+      const newContractId = await createRevisedContract(
         originalContract,
         revisedContent,
         revisedTerms || undefined
       );
       
-      console.log('✅ Contract revision successful');
+      console.log('✅ Contract revision successful, new contract ID:', newContractId);
       toast.success('Revised contract sent successfully!');
       onRevisionSent?.();
       onClose();
     } catch (error: any) {
       console.error('❌ Error creating revised contract:', error);
-      toast.error(error.message || 'Failed to send revised contract');
+      console.error('❌ Error details:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        stack: error.stack
+      });
+      
+      // More specific error messages
+      let errorMessage = 'Failed to send revised contract';
+      if (error.message?.includes('not authenticated')) {
+        errorMessage = 'Please log in again to send the revision';
+      } else if (error.message?.includes('not the contract creator')) {
+        errorMessage = 'Only the contract creator can send revisions';
+      } else if (error.message?.includes('not in rejected status')) {
+        errorMessage = 'This contract cannot be revised (not rejected)';
+      } else if (error.message?.includes('Database error')) {
+        errorMessage = 'Database error - please try again';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -248,13 +290,24 @@ export const ContractRevisionEditor = ({
 
         {/* Footer */}
         <div className="flex justify-between items-center p-6 border-t bg-muted/30">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            
+            {/* Debug info for development */}
+            {import.meta.env.DEV && (
+              <div className="text-xs text-muted-foreground">
+                <div>Status: {originalContract.status}</div>
+                <div>Creator: {originalContract.created_by}</div>
+                <div>HasChanges: {hasChanges ? 'Yes' : 'No'}</div>
+              </div>
+            )}
+          </div>
           
           <Button
             onClick={handleSubmit}

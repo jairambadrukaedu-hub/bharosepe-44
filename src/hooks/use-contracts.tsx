@@ -442,23 +442,50 @@ export const useContracts = () => {
     revisedContent: string,
     revisedTerms?: string
   ) => {
-    if (!user) throw new Error('User not authenticated');
+    if (!user) {
+      console.error('❌ User not authenticated for revision');
+      throw new Error('User not authenticated');
+    }
     
     console.log('🔄 Creating revised contract for:', originalContract.id);
     console.log('🧑 Current user ID:', user.id);
     console.log('👨‍💼 Contract creator ID:', originalContract.created_by);
     console.log('📋 Contract status:', originalContract.status);
+    console.log('📝 Revised content length:', revisedContent?.length || 0);
+    console.log('📋 Original contract details:', {
+      id: originalContract.id,
+      transaction_id: originalContract.transaction_id,
+      status: originalContract.status,
+      created_by: originalContract.created_by,
+      recipient_id: originalContract.recipient_id,
+      revision_number: originalContract.revision_number,
+      parent_contract_id: originalContract.parent_contract_id,
+      is_active: originalContract.is_active
+    });
+    
+    // Validate input
+    if (!revisedContent?.trim()) {
+      console.error('❌ Revised content is empty or invalid');
+      throw new Error('Revised content cannot be empty');
+    }
     
     // Only allow contract creator to revise
     if (originalContract.created_by !== user.id) {
       console.error('❌ User is not the contract creator');
+      console.error('❌ Expected creator:', originalContract.created_by, 'Got user:', user.id);
       throw new Error('Only contract creator can create revisions');
     }
 
     // Only allow revision of rejected contracts
     if (originalContract.status !== 'rejected') {
       console.error('❌ Contract is not in rejected status, current status:', originalContract.status);
-      throw new Error('Only rejected contracts can be revised');
+      throw new Error(`Only rejected contracts can be revised. Current status: ${originalContract.status}`);
+    }
+
+    // Validate transaction exists
+    if (!originalContract.transaction_id) {
+      console.error('❌ Original contract has no transaction_id');
+      throw new Error('Original contract missing transaction reference');
     }
 
     const revisionNumber = (originalContract.revision_number || 1) + 1;
@@ -469,23 +496,39 @@ export const useContracts = () => {
 
     try {
       // 1) Create the new revised contract (active)
+      console.log('📤 Creating new contract with data:', {
+        transaction_id: originalContract.transaction_id,
+        contract_content: revisedContent.substring(0, 100) + '...',
+        terms: revisedTerms?.substring(0, 50) + '...' || 'none',
+        recipient_id: originalContract.recipient_id,
+        initiator_role: originalContract.initiator_role,
+        parent_contract_id: parentId,
+        revision_number: revisionNumber
+      });
+      
       const newContractId = await createContract({
         transaction_id: originalContract.transaction_id,
-        contract_content: revisedContent,
-        terms: revisedTerms,
+        contract_content: revisedContent.trim(),
+        terms: revisedTerms?.trim(),
         recipient_id: originalContract.recipient_id,
         initiator_role: originalContract.initiator_role,
         parent_contract_id: parentId,
         revision_number: revisionNumber
       });
 
-      if (!newContractId) throw new Error('Failed to create revised contract');
+      if (!newContractId) {
+        console.error('❌ createContract returned null/undefined');
+        throw new Error('Failed to create revised contract - no contract ID returned');
+      }
 
       console.log('✅ New revised contract created with ID:', newContractId);
 
       // 2) Mark previous versions as inactive
       try {
-        const { error: inactiveError } = await supabase
+        console.log('⏳ Marking previous contract versions inactive...');
+        console.log('🔍 Looking for contracts to mark inactive with parent_id:', parentId);
+        
+        const { error: inactiveError, count } = await supabase
           .from('contracts')
           .update({ is_active: false })
           .or(`id.eq.${parentId},parent_contract_id.eq.${parentId}`)
@@ -494,14 +537,15 @@ export const useContracts = () => {
         if (inactiveError) {
           console.warn('⚠️ Failed to mark previous contract versions inactive:', inactiveError);
         } else {
-          console.log('✅ Previous contract versions marked as inactive');
+          console.log('✅ Previous contract versions marked as inactive, count:', count);
         }
       } catch (e) {
-        console.warn('Failed to mark previous contract versions inactive:', e);
+        console.warn('⚠️ Non-critical error marking previous contract versions inactive:', e);
       }
 
       // 3) Update transaction status back to created (waiting for acceptance)
       try {
+        console.log('⏳ Updating transaction status...');
         const { error: txUpdateError } = await supabase
           .from('transactions')
           .update({ status: 'created' })
@@ -513,14 +557,34 @@ export const useContracts = () => {
           console.log('✅ Transaction status updated to created');
         }
       } catch (e) {
-        console.warn('Failed to update transaction status after revision:', e);
+        console.warn('⚠️ Non-critical error updating transaction status after revision:', e);
       }
 
+      // 4) Refresh contracts
+      console.log('🔄 Refreshing contracts list...');
       await fetchContracts();
+      
+      console.log('✅ Contract revision process completed successfully');
       return newContractId;
+      
     } catch (error: any) {
       console.error('❌ Error in createRevisedContract:', error);
-      throw error;
+      console.error('❌ Error type:', typeof error);
+      console.error('❌ Error details:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        stack: error?.stack?.substring(0, 500)
+      });
+      
+      // Re-throw with more context
+      if (error.message?.includes('Database error')) {
+        throw new Error(`Database error during revision: ${error.message}`);
+      } else if (error.message?.includes('not authenticated')) {
+        throw new Error('Authentication required for contract revision');
+      } else {
+        throw new Error(error.message || 'Unexpected error during contract revision');
+      }
     }
   };
 
