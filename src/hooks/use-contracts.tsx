@@ -209,8 +209,8 @@ export const useContracts = () => {
         recipient_id: contractData.recipient_id || null,
         contract_content: contractData.contract_content.trim(),
         terms: contractData.terms?.trim() || null,
-        // Only include amount if it's provided and different from transaction amount
-        ...(contractData.amount && contractData.amount !== transaction.amount ? { amount: contractData.amount } : {}),
+        // Always include amount - use provided amount or fall back to transaction amount
+        amount: contractData.amount ?? transaction.amount,
         status: contractData.recipient_id ? 'awaiting_acceptance' : 'draft',
         initiator_role: contractData.initiator_role || null,
         counterparty_role: contractData.initiator_role === 'buyer' ? 'seller' : 'buyer',
@@ -516,9 +516,8 @@ export const useContracts = () => {
         transaction_id: originalContract.transaction_id,
         contract_content: revisedContent.trim(),
         terms: revisedTerms?.trim(),
-        // Only include amount if it's provided and different from the original
-        ...(revisedAmount && revisedAmount !== (originalContract.amount || originalContract.transaction?.amount) 
-           ? { amount: revisedAmount } : {}),
+        // Always include amount - use revised amount if provided, otherwise original amount
+        amount: revisedAmount ?? (originalContract.amount || originalContract.transaction?.amount),
         recipient_id: originalContract.recipient_id,
         initiator_role: originalContract.initiator_role,
         parent_contract_id: parentId,
