@@ -145,7 +145,7 @@ const RecentDealsSection: React.FC<RecentDealsSectionProps> = ({
           >
             <Card 
               className="cursor-pointer hover:shadow-md transition-shadow duration-200 border border-border"
-              onClick={() => navigate(`/transaction-status`, { state: { transactionId: transaction.id } })}
+              onClick={() => navigate(`/transaction-status/${transaction.id}`)}
             >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
