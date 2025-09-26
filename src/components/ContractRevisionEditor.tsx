@@ -83,7 +83,10 @@ export const ContractRevisionEditor = ({
         originalContract,
         revisedContent,
         revisedTerms || undefined,
-        revisedAmount
+        // Only pass amount if it's different from original
+        (originalContract.amount || originalContract.transaction?.amount) && 
+        revisedAmount !== (originalContract.amount || originalContract.transaction?.amount) 
+          ? revisedAmount : undefined
       );
       
       console.log('✅ Contract revision successful, new contract ID:', newContractId);
@@ -122,7 +125,9 @@ export const ContractRevisionEditor = ({
   const hasChanges = 
     revisedContent.trim() !== originalContract.contract_content.trim() ||
     (revisedTerms || '').trim() !== (originalContract.terms || '').trim() ||
-    revisedAmount !== (originalContract.amount || originalContract.transaction?.amount || 0);
+    // Only check amount changes if both contracts have valid amounts
+    (originalContract.amount && revisedAmount !== originalContract.amount) ||
+    (originalContract.transaction?.amount && !originalContract.amount && revisedAmount !== originalContract.transaction.amount);
 
   return (
     <motion.div
@@ -271,21 +276,24 @@ export const ContractRevisionEditor = ({
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="revised-amount" className="text-sm font-medium">
-                    Contract Amount (₹) *
-                  </Label>
-                  <input
-                    id="revised-amount"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={revisedAmount}
-                    onChange={(e) => setRevisedAmount(Number(e.target.value))}
-                    className="mt-1 w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="Enter contract amount"
-                  />
-                </div>
+                {/* Only show amount field if contract or transaction has amount */}
+                {(originalContract.amount || originalContract.transaction?.amount) && (
+                  <div>
+                    <Label htmlFor="revised-amount" className="text-sm font-medium">
+                      Contract Amount (₹) *
+                    </Label>
+                    <input
+                      id="revised-amount"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={revisedAmount}
+                      onChange={(e) => setRevisedAmount(Number(e.target.value))}
+                      className="mt-1 w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                      placeholder="Enter contract amount"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <Label htmlFor="revised-terms" className="text-sm font-medium">

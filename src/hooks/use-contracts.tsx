@@ -209,7 +209,8 @@ export const useContracts = () => {
         recipient_id: contractData.recipient_id || null,
         contract_content: contractData.contract_content.trim(),
         terms: contractData.terms?.trim() || null,
-        amount: contractData.amount || transaction.amount, // Use contract amount or fallback to transaction amount
+        // Only include amount if it's provided and different from transaction amount
+        ...(contractData.amount && contractData.amount !== transaction.amount ? { amount: contractData.amount } : {}),
         status: contractData.recipient_id ? 'awaiting_acceptance' : 'draft',
         initiator_role: contractData.initiator_role || null,
         counterparty_role: contractData.initiator_role === 'buyer' ? 'seller' : 'buyer',
@@ -515,7 +516,9 @@ export const useContracts = () => {
         transaction_id: originalContract.transaction_id,
         contract_content: revisedContent.trim(),
         terms: revisedTerms?.trim(),
-        amount: revisedAmount,
+        // Only include amount if it's provided and different from the original
+        ...(revisedAmount && revisedAmount !== (originalContract.amount || originalContract.transaction?.amount) 
+           ? { amount: revisedAmount } : {}),
         recipient_id: originalContract.recipient_id,
         initiator_role: originalContract.initiator_role,
         parent_contract_id: parentId,
@@ -619,8 +622,11 @@ export const useContracts = () => {
 
   // Utility function to get the effective amount for a contract
   const getContractAmount = (contract: Contract): number => {
-    // Use contract-specific amount if available, otherwise fall back to transaction amount
-    return contract.amount || contract.transaction?.amount || 0;
+    // Use contract-specific amount if available and valid, otherwise fall back to transaction amount
+    if (contract.amount && contract.amount > 0) {
+      return contract.amount;
+    }
+    return contract.transaction?.amount || 0;
   };
 
   useEffect(() => {
