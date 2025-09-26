@@ -19,7 +19,7 @@ interface ContractSummaryCardProps {
 
 export const ContractSummaryCard = ({ contract, type }: ContractSummaryCardProps) => {
   const { user } = useAuth();
-  const { respondToContract } = useContracts();
+  const { respondToContract, getContractAmount } = useContracts();
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isResponding, setIsResponding] = useState(false);
@@ -133,7 +133,7 @@ if (action === 'accept') {
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1">
-                  <span>Amount: ₹{contract.transaction?.amount?.toLocaleString() || 'N/A'}</span>
+                  <span>Amount: ₹{getContractAmount(contract).toLocaleString()}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
@@ -293,14 +293,14 @@ if (action === 'accept') {
                   e.stopPropagation();
                   navigate('/payment', {
                     state: {
-                      amount: contract.transaction.amount.toString(),
+                      amount: getContractAmount(contract).toString(),
                       transactionId: contract.transaction_id
                     }
                   });
                 }}
                 className="w-full bg-bharose-primary hover:bg-bharose-primary/90 text-white text-sm font-medium py-3"
               >
-                🔒 Pay into Escrow - ₹{contract.transaction.amount.toLocaleString()}
+                🔒 Pay into Escrow - ₹{getContractAmount(contract).toLocaleString()}
               </Button>
             )}
             
@@ -310,7 +310,7 @@ if (action === 'accept') {
               <div className="text-center py-3 bg-blue-50 rounded-lg border border-blue-200">
                 <p className="text-sm text-blue-700">⏳ Waiting for buyer payment</p>
                 <p className="text-xs text-blue-600 mt-1">
-                  The buyer will pay ₹{contract.transaction.amount.toLocaleString()} into secure escrow
+                  The buyer will pay ₹{getContractAmount(contract).toLocaleString()} into secure escrow
                 </p>
               </div>
             )}

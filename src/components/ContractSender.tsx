@@ -41,7 +41,7 @@ export default function ContractSender({
     if (transaction && !contractContent) {
       const defaultContent = `Transaction Agreement for: ${transaction.title}
 
-Amount: ₹${transaction.amount.toLocaleString()}
+Amount: ₹${transaction.amount?.toLocaleString() || '0'}
 ${transaction.description ? `Description: ${transaction.description}` : ''}
 ${transaction.delivery_date ? `Expected Delivery: ${new Date(transaction.delivery_date).toLocaleDateString()}` : ''}
 

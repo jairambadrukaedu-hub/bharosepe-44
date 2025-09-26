@@ -9,6 +9,7 @@ export interface Contract {
   status: 'draft' | 'awaiting_acceptance' | 'accepted_awaiting_payment' | 'rejected' | 'expired';
   terms?: string;
   contract_content: string;
+  amount?: number; // Contract-specific amount (overrides transaction amount)
   created_by: string;
   recipient_id?: string;
   response_message?: string;
@@ -131,6 +132,7 @@ export const useContracts = () => {
     transaction_id: string;
     contract_content: string;
     terms?: string;
+    amount?: number; // Allow custom amount in contract
     recipient_id?: string;
     initiator_role?: 'buyer' | 'seller';
     parent_contract_id?: string;
@@ -151,7 +153,7 @@ export const useContracts = () => {
       console.log('🔍 Verifying transaction access:', contractData.transaction_id);
       const { data: transaction, error: txError } = await supabase
         .from('transactions')
-        .select('id, title, buyer_id, seller_id')
+        .select('id, title, amount, buyer_id, seller_id')
         .eq('id', contractData.transaction_id)
         .maybeSingle();
 
@@ -207,6 +209,7 @@ export const useContracts = () => {
         recipient_id: contractData.recipient_id || null,
         contract_content: contractData.contract_content.trim(),
         terms: contractData.terms?.trim() || null,
+        amount: contractData.amount || transaction.amount, // Use contract amount or fallback to transaction amount
         status: contractData.recipient_id ? 'awaiting_acceptance' : 'draft',
         initiator_role: contractData.initiator_role || null,
         counterparty_role: contractData.initiator_role === 'buyer' ? 'seller' : 'buyer',
@@ -440,7 +443,8 @@ export const useContracts = () => {
   const createRevisedContract = async (
     originalContract: Contract,
     revisedContent: string,
-    revisedTerms?: string
+    revisedTerms?: string,
+    revisedAmount?: number
   ) => {
     if (!user) {
       console.error('❌ User not authenticated for revision');
@@ -500,6 +504,7 @@ export const useContracts = () => {
         transaction_id: originalContract.transaction_id,
         contract_content: revisedContent.substring(0, 100) + '...',
         terms: revisedTerms?.substring(0, 50) + '...' || 'none',
+        amount: revisedAmount,
         recipient_id: originalContract.recipient_id,
         initiator_role: originalContract.initiator_role,
         parent_contract_id: parentId,
@@ -510,6 +515,7 @@ export const useContracts = () => {
         transaction_id: originalContract.transaction_id,
         contract_content: revisedContent.trim(),
         terms: revisedTerms?.trim(),
+        amount: revisedAmount,
         recipient_id: originalContract.recipient_id,
         initiator_role: originalContract.initiator_role,
         parent_contract_id: parentId,
@@ -611,6 +617,12 @@ export const useContracts = () => {
     }
   };
 
+  // Utility function to get the effective amount for a contract
+  const getContractAmount = (contract: Contract): number => {
+    // Use contract-specific amount if available, otherwise fall back to transaction amount
+    return contract.amount || contract.transaction?.amount || 0;
+  };
+
   useEffect(() => {
     // Don't fetch if auth is still loading
     if (authLoading) {
@@ -665,6 +677,7 @@ export const useContracts = () => {
     getUserRoleInContract,
     getRevisionableContracts,
     getLatestRejectedContract,
+    getContractAmount,
     refreshContracts: fetchContracts
   };
 };

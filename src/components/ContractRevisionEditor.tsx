@@ -32,6 +32,9 @@ export const ContractRevisionEditor = ({
   const { createRevisedContract } = useContracts();
   const [revisedContent, setRevisedContent] = useState(originalContract.contract_content);
   const [revisedTerms, setRevisedTerms] = useState(originalContract.terms || '');
+  const [revisedAmount, setRevisedAmount] = useState(
+    originalContract.amount || originalContract.transaction?.amount || 0
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showOriginal, setShowOriginal] = useState(true);
 
@@ -72,13 +75,15 @@ export const ContractRevisionEditor = ({
       console.log('📤 Calling createRevisedContract with:', {
         revisedContent: revisedContent.substring(0, 100) + '...',
         revisedTerms: revisedTerms?.substring(0, 50) + '...' || 'none',
+        revisedAmount: revisedAmount,
         hasChanges
       });
       
       const newContractId = await createRevisedContract(
         originalContract,
         revisedContent,
-        revisedTerms || undefined
+        revisedTerms || undefined,
+        revisedAmount
       );
       
       console.log('✅ Contract revision successful, new contract ID:', newContractId);
@@ -116,7 +121,8 @@ export const ContractRevisionEditor = ({
 
   const hasChanges = 
     revisedContent.trim() !== originalContract.contract_content.trim() ||
-    (revisedTerms || '').trim() !== (originalContract.terms || '').trim();
+    (revisedTerms || '').trim() !== (originalContract.terms || '').trim() ||
+    revisedAmount !== (originalContract.amount || originalContract.transaction?.amount || 0);
 
   return (
     <motion.div
@@ -215,6 +221,15 @@ export const ContractRevisionEditor = ({
                     </div>
                   </div>
                   
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground">
+                      Original Amount
+                    </Label>
+                    <div className="mt-1 p-3 bg-muted/30 rounded-lg border text-sm">
+                      <p className="font-semibold">₹{(originalContract.amount || originalContract.transaction?.amount || 0).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  
                   {originalContract.terms && (
                     <div>
                       <Label className="text-xs font-medium text-muted-foreground">
@@ -253,6 +268,22 @@ export const ContractRevisionEditor = ({
                     onChange={(e) => setRevisedContent(e.target.value)}
                     className="mt-1 min-h-[200px] resize-none"
                     placeholder="Enter the revised contract content..."
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="revised-amount" className="text-sm font-medium">
+                    Contract Amount (₹) *
+                  </Label>
+                  <input
+                    id="revised-amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={revisedAmount}
+                    onChange={(e) => setRevisedAmount(Number(e.target.value))}
+                    className="mt-1 w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Enter contract amount"
                   />
                 </div>
 
