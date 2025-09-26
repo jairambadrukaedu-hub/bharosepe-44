@@ -129,7 +129,7 @@ export const ContractRevisionEditor = ({
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+        className="bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col"
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
@@ -158,7 +158,7 @@ export const ContractRevisionEditor = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0">
           {/* Rejection Reason */}
           {originalContract.response_message && (
             <Card className="border-red-200 bg-red-50">
@@ -288,8 +288,8 @@ export const ContractRevisionEditor = ({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex justify-between items-center p-6 border-t bg-muted/30">
+        {/* Footer - Always Visible */}
+        <div className="flex justify-between items-center p-6 border-t bg-muted/30 mt-auto shrink-0">
           <div className="flex items-center gap-3">
             <Button
               variant="outline"
@@ -305,28 +305,54 @@ export const ContractRevisionEditor = ({
                 <div>Status: {originalContract.status}</div>
                 <div>Creator: {originalContract.created_by}</div>
                 <div>HasChanges: {hasChanges ? 'Yes' : 'No'}</div>
+                <div>ContentEmpty: {!revisedContent.trim() ? 'Yes' : 'No'}</div>
+                <div>ButtonDisabled: {(isSubmitting || !hasChanges || !revisedContent.trim()) ? 'Yes' : 'No'}</div>
               </div>
             )}
           </div>
           
-          <Button
-            onClick={handleSubmit}
-            disabled={isSubmitting || !hasChanges || !revisedContent.trim()}
-            className="flex items-center gap-2"
-          >
-            {isSubmitting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Sending Revision...
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4" />
-                Send Revised Contract
-              </>
+          <div className="flex items-center gap-3">
+            {/* Status indicator */}
+            {hasChanges && (
+              <div className="text-xs text-green-600 font-medium px-2 py-1 bg-green-50 rounded">
+                Changes Detected ✓
+              </div>
             )}
-          </Button>
+            
+            <Button
+              onClick={handleSubmit}
+              disabled={isSubmitting || !hasChanges || !revisedContent.trim()}
+              className="flex items-center gap-2"
+              size="lg"
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Sending Revision...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  Send Revised Contract
+                </>
+              )}
+            </Button>
+          </div>
         </div>
+
+        {/* Floating Send Button - Backup for visibility */}
+        {hasChanges && !isSubmitting && (
+          <div className="fixed bottom-6 right-6 z-10">
+            <Button
+              onClick={handleSubmit}
+              className="flex items-center gap-2 shadow-lg"
+              size="lg"
+            >
+              <Send className="h-4 w-4" />
+              Send Revised Contract
+            </Button>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );
