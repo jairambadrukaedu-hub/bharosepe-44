@@ -283,11 +283,22 @@ export const ContractRevisionEditor = ({
                     id="revised-amount"
                     type="number"
                     min="0"
-                    step="0.01"
                     value={revisedAmount}
-                    onChange={(e) => setRevisedAmount(Number(e.target.value))}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Handle empty input
+                      if (value === '') {
+                        setRevisedAmount(0);
+                        return;
+                      }
+                      // Parse as integer to avoid floating-point precision issues
+                      const parsedValue = parseInt(value, 10);
+                      if (!isNaN(parsedValue) && parsedValue >= 0) {
+                        setRevisedAmount(parsedValue);
+                      }
+                    }}
                     className="mt-1 w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="Enter contract amount"
+                    placeholder="Enter contract amount (whole rupees only)"
                   />
                 </div>
 

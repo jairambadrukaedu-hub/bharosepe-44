@@ -36,13 +36,45 @@ const TransactionStatus = () => {
   const { userMode } = useUserModeContext();
   const { transactions, loading, updateTransactionStatus } = useTransactions(userMode as 'Buyer' | 'Seller');
   const { getEscalationByTransactionId } = useEscalations();
-  const { contracts, getLatestRejectedContract } = useContracts();
+  const { contracts, getLatestRejectedContract, getContractAmount } = useContracts();
   
   const [contractIdForTx, setContractIdForTx] = useState<string | null>(null);
   const [originalContract, setOriginalContract] = useState<any>(null);
   const [dispute, setDispute] = useState<any>(null);
   const transaction = transactions.find(tx => tx.id === id);
   const escalation = id ? getEscalationByTransactionId(id) : null;
+  
+  // Get the effective transaction amount (from latest accepted contract or original transaction)
+  const getEffectiveTransactionAmount = (): number => {
+    if (!transaction) return 0;
+    
+    // Find the latest accepted/active contract for this transaction
+    // Look for contracts in order of preference: accepted_awaiting_payment > awaiting_acceptance > draft
+    const acceptedContract = contracts
+      .filter(contract => contract.transaction_id === id)
+      .sort((a, b) => {
+        // Sort by status priority first
+        const statusPriority = { 
+          'accepted_awaiting_payment': 3, 
+          'awaiting_acceptance': 2, 
+          'draft': 1,
+          'rejected': 0,
+          'expired': 0
+        };
+        const priorityDiff = (statusPriority[b.status as keyof typeof statusPriority] || 0) - (statusPriority[a.status as keyof typeof statusPriority] || 0);
+        if (priorityDiff !== 0) return priorityDiff;
+        
+        // Then by creation date (newest first)
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      })[0];
+    
+    if (acceptedContract) {
+      return getContractAmount(acceptedContract);
+    }
+    
+    // Fall back to original transaction amount
+    return transaction.amount;
+  };
   
   // Fetch related contract id and original contract data
   useEffect(() => {
@@ -173,7 +205,7 @@ const TransactionStatus = () => {
     if (id && transaction) {
       navigate('/payment', { 
         state: { 
-          amount: transaction.amount.toString(),
+          amount: getEffectiveTransactionAmount().toString(),
           transactionId: id,
           userMode
         }
@@ -279,7 +311,7 @@ const TransactionStatus = () => {
           <h2 className="text-xl font-semibold mb-1">{transaction.title}</h2>
           <div className="flex justify-between items-center mb-4">
             <span className="text-muted-foreground">ID: {transaction.id}</span>
-            <span className="text-bharose-primary font-semibold text-lg">₹{transaction.amount.toLocaleString()}</span>
+            <span className="text-bharose-primary font-semibold text-lg">₹{getEffectiveTransactionAmount().toLocaleString()}</span>
           </div>
           
           {/* Transaction Status Badge */}
@@ -403,7 +435,7 @@ const TransactionStatus = () => {
               
               <div className="flex items-center justify-between text-sm mb-4">
                 <span className="text-muted-foreground">
-                  Amount: <span className="font-medium text-foreground">₹{transaction.amount.toLocaleString()}</span>
+                  Amount: <span className="font-medium text-foreground">₹{getEffectiveTransactionAmount().toLocaleString()}</span>
                 </span>
                 <span className="text-muted-foreground flex items-center">
                   <Calendar size={14} className="mr-1" />
@@ -415,7 +447,7 @@ const TransactionStatus = () => {
               <div className="bg-muted/30 rounded-lg p-4 mb-4">
                 <div className="text-center text-sm text-muted-foreground mb-3">
                   <h5 className="font-medium text-foreground">Transaction Agreement for: {transaction.title}</h5>
-                  <p>Amount: ₹{transaction.amount.toLocaleString()}</p>
+                  <p>Amount: ₹{getEffectiveTransactionAmount().toLocaleString()}</p>
                   {transaction.delivery_date && (
                     <p>Expected Delivery: {new Date(transaction.delivery_date).toLocaleDateString()}</p>
                   )}

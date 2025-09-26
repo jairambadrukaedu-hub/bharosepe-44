@@ -39,7 +39,7 @@ const AiAgreementGeneration = () => {
     // Create the agreement record with proper sender/receiver identification
     const agreementId = addAgreement({
       transactionTitle: transactionData.details.productName || transactionData.details.serviceDescription || 'Transaction Agreement',
-      amount: Number(transactionData.details.price) || 0,
+      amount: parseInt(transactionData.details.price || '0', 10),
       type: transactionData.type,
       description: finalAgreement,
       terms: 'Standard escrow terms with AI-generated clauses',

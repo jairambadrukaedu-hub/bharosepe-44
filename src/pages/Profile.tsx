@@ -9,6 +9,7 @@ import BottomNavigation from '@/components/BottomNavigation';
 import { useAuth } from '@/hooks/use-auth';
 import { useProfile } from '@/hooks/use-profile';
 import { useTransactions } from '@/hooks/use-transactions';
+import { useContracts } from '@/hooks/use-contracts';
 import { useUserModeContext } from '@/components/UserModeContext';
 import ProfileHeader from '@/components/profile/ProfileHeader';
 import ProfileStats from '@/components/profile/ProfileStats';
@@ -24,6 +25,7 @@ const Profile = () => {
   const { userMode } = useUserModeContext();
   const { profile, updateProfile, updateEmail, loading: profileLoading } = useProfile();
   const { transactions } = useTransactions(userMode);
+  const { contracts, getContractAmount } = useContracts();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
@@ -70,10 +72,29 @@ const Profile = () => {
     const successRate = totalTransactions > 0 ? (completedTransactions.length / totalTransactions) * 100 : 0;
     const avgTransactionValue = totalTransactions > 0 ? totalAmount / totalTransactions : 0;
     
-    // Calculate escrow balance for current role
+    // Calculate escrow balance for current role using contract amounts
     const escrowBalance = userTransactions
       .filter(tx => tx.status === 'payment_made' || tx.status === 'work_completed')
-      .reduce((sum, tx) => sum + tx.amount, 0);
+      .reduce((sum, tx) => {
+        // Find the latest accepted contract for this transaction
+        const acceptedContract = contracts
+          .filter(contract => contract.transaction_id === tx.id)
+          .sort((a, b) => {
+            const statusPriority = { 
+              'accepted_awaiting_payment': 3, 
+              'awaiting_acceptance': 2, 
+              'draft': 1,
+              'rejected': 0,
+              'expired': 0
+            };
+            const priorityDiff = (statusPriority[b.status as keyof typeof statusPriority] || 0) - (statusPriority[a.status as keyof typeof statusPriority] || 0);
+            if (priorityDiff !== 0) return priorityDiff;
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          })[0];
+        
+        const effectiveAmount = acceptedContract ? getContractAmount(acceptedContract) : tx.amount;
+        return sum + effectiveAmount;
+      }, 0);
     
     return {
       totalTransactions,

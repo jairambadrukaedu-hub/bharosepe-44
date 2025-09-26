@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
+import { useContracts } from '@/hooks/use-contracts';
 
 interface Transaction {
   id: string;
@@ -30,6 +31,35 @@ const RecentDealsSection: React.FC<RecentDealsSectionProps> = ({
   onStartNew
 }) => {
   const navigate = useNavigate();
+  const { contracts, getContractAmount } = useContracts();
+  
+  // Get effective amount for a transaction (from latest accepted contract or original amount)
+  const getEffectiveAmount = (transaction: Transaction): number => {
+    // Find the latest accepted/active contract for this transaction
+    const acceptedContract = contracts
+      .filter(contract => contract.transaction_id === transaction.id)
+      .sort((a, b) => {
+        // Sort by status priority first
+        const statusPriority = { 
+          'accepted_awaiting_payment': 3, 
+          'awaiting_acceptance': 2, 
+          'draft': 1,
+          'rejected': 0,
+          'expired': 0
+        };
+        const priorityDiff = (statusPriority[b.status as keyof typeof statusPriority] || 0) - (statusPriority[a.status as keyof typeof statusPriority] || 0);
+        if (priorityDiff !== 0) return priorityDiff;
+        
+        // Then by creation date (newest first)
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      })[0];
+    
+    if (acceptedContract) {
+      return getContractAmount(acceptedContract);
+    }
+    
+    return transaction.amount;
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -170,7 +200,7 @@ const RecentDealsSection: React.FC<RecentDealsSectionProps> = ({
                   
                   <div className="text-right">
                     <p className="font-semibold text-foreground">
-                      ₹{transaction.amount.toLocaleString()}
+                      ₹{getEffectiveAmount(transaction).toLocaleString()}
                     </p>
                     <div className="flex items-center gap-1 mt-1">
                       {getStatusIcon(transaction.status)}

@@ -8,6 +8,7 @@ import { CheckCircle, DollarSign, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/use-auth';
+import { useContracts } from '@/hooks/use-contracts';
 
 interface DisputeResolutionActionsProps {
   transaction: any;
@@ -23,6 +24,27 @@ export const DisputeResolutionActions: React.FC<DisputeResolutionActionsProps> =
   onResolutionComplete
 }) => {
   const { user } = useAuth();
+  const { contracts, getContractAmount } = useContracts();
+  
+  // Get effective escrow amount from latest accepted contract
+  const getEffectiveEscrowAmount = (): number => {
+    const acceptedContract = contracts
+      .filter(contract => contract.transaction_id === transaction.id)
+      .sort((a, b) => {
+        const statusPriority = { 
+          'accepted_awaiting_payment': 3, 
+          'awaiting_acceptance': 2, 
+          'draft': 1,
+          'rejected': 0,
+          'expired': 0
+        };
+        const priorityDiff = (statusPriority[b.status as keyof typeof statusPriority] || 0) - (statusPriority[a.status as keyof typeof statusPriority] || 0);
+        if (priorityDiff !== 0) return priorityDiff;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      })[0];
+    
+    return acceptedContract ? getContractAmount(acceptedContract) : transaction.amount;
+  };
   const [resolving, setResolving] = useState(false);
   const [releaseAmount, setReleaseAmount] = useState('');
   const [refundAmount, setRefundAmount] = useState('');
@@ -63,22 +85,23 @@ export const DisputeResolutionActions: React.FC<DisputeResolutionActionsProps> =
       let newTransactionStatus = 'completed';
       
       // Determine resolution notes and messages based on action
+      const effectiveAmount = getEffectiveEscrowAmount();
       switch (action) {
         case 'release_full':
           resolutionNotes = 'Completed – Buyer Released Funds (Full)';
-          resolutionMessage = `🎉 Dispute Resolved – Funds Settled\n\n₹${transaction.amount.toLocaleString()} released to Seller.\n\nThis dispute has been resolved and the transaction is now complete.`;
+          resolutionMessage = `🎉 Dispute Resolved – Funds Settled\n\n₹${effectiveAmount.toLocaleString()} released to Seller.\n\nThis dispute has been resolved and the transaction is now complete.`;
           break;
         case 'release_partial':
-          const remainingAmount = transaction.amount - (amount || 0);
+          const remainingAmount = effectiveAmount - (amount || 0);
           resolutionNotes = `Completed – Buyer Released Funds (Partial) - ₹${amount?.toLocaleString()}`;
           resolutionMessage = `🎉 Dispute Resolved – Funds Settled\n\n₹${amount?.toLocaleString()} released to Seller\n₹${remainingAmount.toLocaleString()} refunded to Buyer\n\nThis dispute has been resolved and the transaction is now complete.`;
           break;
         case 'refund_full':
           resolutionNotes = 'Completed – Seller Refunded (Full)';
-          resolutionMessage = `🎉 Dispute Resolved – Funds Settled\n\n₹${transaction.amount.toLocaleString()} refunded to Buyer.\n\nThis dispute has been resolved and the transaction is now complete.`;
+          resolutionMessage = `🎉 Dispute Resolved – Funds Settled\n\n₹${effectiveAmount.toLocaleString()} refunded to Buyer.\n\nThis dispute has been resolved and the transaction is now complete.`;
           break;
         case 'refund_partial':
-          const sellerAmount = transaction.amount - (amount || 0);
+          const sellerAmount = effectiveAmount - (amount || 0);
           resolutionNotes = `Completed – Seller Refunded (Partial) - ₹${amount?.toLocaleString()}`;
           resolutionMessage = `🎉 Dispute Resolved – Funds Settled\n\n₹${amount?.toLocaleString()} refunded to Buyer\n₹${sellerAmount.toLocaleString()} released to Seller\n\nThis dispute has been resolved and the transaction is now complete.`;
           break;
@@ -165,7 +188,7 @@ export const DisputeResolutionActions: React.FC<DisputeResolutionActionsProps> =
       {userRole === 'buyer' && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Escrow Balance: ₹{transaction.amount.toLocaleString()}</span>
+            <span className="text-sm font-medium">Escrow Balance: ₹{getEffectiveEscrowAmount().toLocaleString()}</span>
             <Badge variant="outline">Buyer Actions</Badge>
           </div>
           
@@ -180,7 +203,7 @@ export const DisputeResolutionActions: React.FC<DisputeResolutionActionsProps> =
               <DialogHeader>
                 <DialogTitle>Release Funds to Seller</DialogTitle>
                 <DialogDescription>
-                  Choose how much to release from the escrow balance of ₹{transaction.amount.toLocaleString()}
+                  Choose how much to release from the escrow balance of ₹{getEffectiveEscrowAmount().toLocaleString()}
                 </DialogDescription>
               </DialogHeader>
               
@@ -191,7 +214,7 @@ export const DisputeResolutionActions: React.FC<DisputeResolutionActionsProps> =
                   onClick={() => openConfirmDialog({ type: 'release_full' })}
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
-                  Release Full Amount (₹{transaction.amount.toLocaleString()})
+                  Release Full Amount (₹{getEffectiveEscrowAmount().toLocaleString()})
                 </Button>
                 
                 <div className="space-y-2">
@@ -230,7 +253,7 @@ export const DisputeResolutionActions: React.FC<DisputeResolutionActionsProps> =
       {userRole === 'seller' && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Escrow Balance: ₹{transaction.amount.toLocaleString()}</span>
+            <span className="text-sm font-medium">Escrow Balance: ₹{getEffectiveEscrowAmount().toLocaleString()}</span>
             <Badge variant="outline">Seller Actions</Badge>
           </div>
           
@@ -245,7 +268,7 @@ export const DisputeResolutionActions: React.FC<DisputeResolutionActionsProps> =
               <DialogHeader>
                 <DialogTitle>Refund Buyer</DialogTitle>
                 <DialogDescription>
-                  Choose how much to refund from the escrow balance of ₹{transaction.amount.toLocaleString()}
+                  Choose how much to refund from the escrow balance of ₹{getEffectiveEscrowAmount().toLocaleString()}
                 </DialogDescription>
               </DialogHeader>
               
@@ -256,7 +279,7 @@ export const DisputeResolutionActions: React.FC<DisputeResolutionActionsProps> =
                   onClick={() => openConfirmDialog({ type: 'refund_full' })}
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  Refund Full Amount (₹{transaction.amount.toLocaleString()})
+                  Refund Full Amount (₹{getEffectiveEscrowAmount().toLocaleString()})
                 </Button>
                 
                 <div className="space-y-2">
@@ -303,13 +326,13 @@ export const DisputeResolutionActions: React.FC<DisputeResolutionActionsProps> =
             </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingAction?.type === 'release_full' && 
-                `This will release the full amount of ₹${transaction.amount.toLocaleString()} to the seller and close the dispute. This action cannot be undone.`
+                `This will release the full amount of ₹${getEffectiveEscrowAmount().toLocaleString()} to the seller and close the dispute. This action cannot be undone.`
               }
               {pendingAction?.type === 'release_partial' && 
                 `This will release ₹${pendingAction.amount?.toLocaleString()} to the seller and refund ₹${(transaction.amount - (pendingAction.amount || 0)).toLocaleString()} to you. The dispute will be closed. This action cannot be undone.`
               }
               {pendingAction?.type === 'refund_full' && 
-                `This will refund the full amount of ₹${transaction.amount.toLocaleString()} to the buyer and close the dispute. This action cannot be undone.`
+                `This will refund the full amount of ₹${getEffectiveEscrowAmount().toLocaleString()} to the buyer and close the dispute. This action cannot be undone.`
               }
               {pendingAction?.type === 'refund_partial' && 
                 `This will refund ₹${pendingAction.amount?.toLocaleString()} to the buyer and release ₹${(transaction.amount - (pendingAction.amount || 0)).toLocaleString()} to you. The dispute will be closed. This action cannot be undone.`

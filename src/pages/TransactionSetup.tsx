@@ -74,7 +74,8 @@ const TransactionSetup = () => {
     }
 
     // Calculate amount based on transaction details
-    const amount = parseFloat(transactionData.details.price || '0');
+    // Parse as integer to avoid floating-point precision issues
+    const amount = parseInt(transactionData.details.price || '0', 10);
     if (amount <= 0) {
       toast.error('Please enter a valid amount');
       return;

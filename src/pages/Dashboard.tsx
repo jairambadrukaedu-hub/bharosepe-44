@@ -27,7 +27,9 @@ const Dashboard = () => {
   const { 
     getPendingContracts,
     getPendingContractsAsBuyer,
-    getPendingContractsAsSeller
+    getPendingContractsAsSeller,
+    contracts,
+    getContractAmount
   } = useContracts();
   const { getActiveDisputes } = useDisputes();
   
@@ -65,7 +67,66 @@ const Dashboard = () => {
     return null;
   }
   
-  const escrowBalance = getEscrowBalance();
+  // Calculate effective escrow balance using contract amounts
+  const getEffectiveEscrowBalance = () => {
+    if (userMode === 'Buyer') {
+      // For buyers: money I've paid that's currently held in escrow
+      return transactions
+        .filter(tx => 
+          tx.role === 'buyer' && 
+          (tx.status === 'payment_made' || tx.status === 'work_completed')
+        )
+        .reduce((sum, tx) => {
+          // Find the latest accepted contract for this transaction
+          const acceptedContract = contracts
+            .filter(contract => contract.transaction_id === tx.id)
+            .sort((a, b) => {
+              const statusPriority = { 
+                'accepted_awaiting_payment': 3, 
+                'awaiting_acceptance': 2, 
+                'draft': 1,
+                'rejected': 0,
+                'expired': 0
+              };
+              const priorityDiff = (statusPriority[b.status as keyof typeof statusPriority] || 0) - (statusPriority[a.status as keyof typeof statusPriority] || 0);
+              if (priorityDiff !== 0) return priorityDiff;
+              return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            })[0];
+          
+          const effectiveAmount = acceptedContract ? getContractAmount(acceptedContract) : tx.amount;
+          return sum + effectiveAmount;
+        }, 0);
+    } else {
+      // For sellers: money held in escrow waiting to be released to me
+      return transactions
+        .filter(tx => 
+          tx.role === 'seller' && 
+          (tx.status === 'payment_made' || tx.status === 'work_completed')
+        )
+        .reduce((sum, tx) => {
+          // Find the latest accepted contract for this transaction
+          const acceptedContract = contracts
+            .filter(contract => contract.transaction_id === tx.id)
+            .sort((a, b) => {
+              const statusPriority = { 
+                'accepted_awaiting_payment': 3, 
+                'awaiting_acceptance': 2, 
+                'draft': 1,
+                'rejected': 0,
+                'expired': 0
+              };
+              const priorityDiff = (statusPriority[b.status as keyof typeof statusPriority] || 0) - (statusPriority[a.status as keyof typeof statusPriority] || 0);
+              if (priorityDiff !== 0) return priorityDiff;
+              return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            })[0];
+          
+          const effectiveAmount = acceptedContract ? getContractAmount(acceptedContract) : tx.amount;
+          return sum + effectiveAmount;
+        }, 0);
+    }
+  };
+  
+  const escrowBalance = getEffectiveEscrowBalance();
   const activeTransactions = getActiveTransactions();
   const recentTransactions = transactions.slice(0, 3); // Show only 3 most recent
 
