@@ -35,9 +35,19 @@ const RecentDealsSection: React.FC<RecentDealsSectionProps> = ({
   
   // Get effective amount for a transaction (from latest accepted contract or original amount)
   const getEffectiveAmount = (transaction: Transaction): number => {
+    console.log('🔍 Getting effective amount for transaction:', transaction.id);
+    
     // Find the latest accepted/active contract for this transaction
-    const acceptedContract = contracts
-      .filter(contract => contract.transaction_id === transaction.id)
+    const transactionContracts = contracts.filter(contract => contract.transaction_id === transaction.id);
+    
+    console.log('📋 Available contracts for', transaction.id, ':', transactionContracts.map(c => ({
+      id: c.id,
+      status: c.status,
+      amount: c.amount,
+      revision_number: c.revision_number
+    })));
+    
+    const acceptedContract = transactionContracts
       .sort((a, b) => {
         // Sort by status priority first
         const statusPriority = { 
@@ -54,10 +64,19 @@ const RecentDealsSection: React.FC<RecentDealsSectionProps> = ({
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       })[0];
     
+    console.log('🎯 Selected contract:', acceptedContract ? {
+      id: acceptedContract.id,
+      status: acceptedContract.status,
+      amount: acceptedContract.amount
+    } : 'None - using original transaction amount');
+    
     if (acceptedContract) {
-      return getContractAmount(acceptedContract);
+      const effectiveAmount = getContractAmount(acceptedContract);
+      console.log('💰 Effective amount:', effectiveAmount);
+      return effectiveAmount;
     }
     
+    console.log('💰 Using original transaction amount:', transaction.amount);
     return transaction.amount;
   };
 

@@ -48,10 +48,22 @@ const TransactionStatus = () => {
   const getEffectiveTransactionAmount = (): number => {
     if (!transaction) return 0;
     
+    console.log('🔍 Getting effective amount for transaction:', id);
+    console.log('📋 Available contracts:', contracts.filter(c => c.transaction_id === id));
+    
     // Find the latest accepted/active contract for this transaction
     // Look for contracts in order of preference: accepted_awaiting_payment > awaiting_acceptance > draft
-    const acceptedContract = contracts
-      .filter(contract => contract.transaction_id === id)
+    const transactionContracts = contracts.filter(contract => contract.transaction_id === id);
+    
+    console.log('📋 Transaction contracts:', transactionContracts.map(c => ({
+      id: c.id,
+      status: c.status,
+      amount: c.amount,
+      revision_number: c.revision_number,
+      created_at: c.created_at
+    })));
+    
+    const acceptedContract = transactionContracts
       .sort((a, b) => {
         // Sort by status priority first
         const statusPriority = { 
@@ -68,11 +80,21 @@ const TransactionStatus = () => {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       })[0];
     
+    console.log('🎯 Selected contract:', acceptedContract ? {
+      id: acceptedContract.id,
+      status: acceptedContract.status,
+      amount: acceptedContract.amount,
+      revision_number: acceptedContract.revision_number
+    } : 'None found');
+    
     if (acceptedContract) {
-      return getContractAmount(acceptedContract);
+      const contractAmount = getContractAmount(acceptedContract);
+      console.log('💰 Contract amount:', contractAmount);
+      return contractAmount;
     }
     
     // Fall back to original transaction amount
+    console.log('⚠️ Using fallback transaction amount:', transaction.amount);
     return transaction.amount;
   };
   
