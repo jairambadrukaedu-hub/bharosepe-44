@@ -31,10 +31,21 @@ export class GoogleAuthService {
   }
 
   private getRedirectUri(): string {
-    const baseUrl = import.meta.env.PROD 
-      ? 'https://bharosepe-contract-manager.onrender.com'
-      : window.location.origin;
+    // Force the correct production URL regardless of where we're running
+    const currentHost = window.location.hostname;
     
+    let baseUrl: string;
+    
+    if (currentHost.includes('bharosepe-contract-manager.onrender.com') || import.meta.env.PROD) {
+      baseUrl = 'https://bharosepe-contract-manager.onrender.com';
+    } else if (currentHost.includes('localhost') || currentHost.includes('127.0.0.1')) {
+      baseUrl = window.location.origin;
+    } else {
+      // Default to Render URL for production
+      baseUrl = 'https://bharosepe-contract-manager.onrender.com';
+    }
+    
+    console.log('🔗 Redirect URI configured for:', `${baseUrl}/auth/callback`);
     return `${baseUrl}/auth/callback`;
   }
 
