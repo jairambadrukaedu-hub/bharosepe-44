@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: bharosepe-contract-manager
+    name: bharosepe-frontend
     env: node
     buildCommand: npm install --legacy-peer-deps && npm run build
     startCommand: npm start
@@ -28,3 +28,15 @@ services:
         value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6eWhva3JmcG55eW5vaG1ydHZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTczMzExNDgsImV4cCI6MjA3MjkwNzE0OH0.i9VDuui-PQ82leMcZPcMtCRNTwU6x4f-_bGCWbibOjc
       - key: VITE_SUPABASE_PROJECT_ID
         value: izyhokrfpnyynohmrtvq
+
+  - type: web
+    name: bharosepe-backend
+    env: node
+    region: oregon
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
