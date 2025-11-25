@@ -1,0 +1,20 @@
+name: Disable Jekyll
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Create .nojekyll file
+        run: touch .nojekyll
+      - name: Commit .nojekyll
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .nojekyll
+          git commit -m "chore: Disable Jekyll" || echo "Nothing to commit"
+          git push || echo "Nothing to push"
