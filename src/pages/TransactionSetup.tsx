@@ -1,19 +1,17 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Header from '@/components/Header';
 import ContactSearch from '@/components/ContactSearch';
-import TransactionTypeSelection from '@/components/TransactionTypeSelection';
-import TransactionDetails from '@/components/TransactionDetails';
-import ContractSender from '@/components/ContractSender';
+import SmartContractBuilder from '@/components/SmartContractBuilder';
 import { useAuth } from '@/hooks/use-auth';
 import { useUserModeContext } from '@/components/UserModeContext';
 import { useTransactions } from '@/hooks/use-transactions';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export type TransactionRole = 'buyer' | 'seller';
-export type TransactionType = 'goods' | 'services';
 
 export interface ContactInfo {
   id: string;
@@ -24,7 +22,6 @@ export interface ContactInfo {
 export interface TransactionData {
   contact: ContactInfo | null;
   role: TransactionRole | null;
-  type: TransactionType | null;
   details: any;
 }
 
@@ -43,9 +40,33 @@ const TransactionSetup = () => {
   const [transactionData, setTransactionData] = useState<TransactionData>({
     contact: null,
     role: autoRole,
-    type: null,
     details: {}
   });
+
+  // Restore transaction state from sessionStorage on mount
+  useEffect(() => {
+    const savedTransactionId = sessionStorage.getItem('currentTransactionId');
+    const savedStep = sessionStorage.getItem('transactionSetupStep');
+    
+    if (savedTransactionId) {
+      console.log('✅ Restored transaction from session:', savedTransactionId);
+      setCreatedTransactionId(savedTransactionId);
+      
+      if (savedStep === '2') {
+        console.log('✅ Restored to step 2 (contract builder)');
+        setCurrentStep(2);
+      }
+    }
+  }, []);
+
+  // Save transaction state to sessionStorage whenever it changes
+  useEffect(() => {
+    if (createdTransactionId) {
+      sessionStorage.setItem('currentTransactionId', createdTransactionId);
+      sessionStorage.setItem('transactionSetupStep', currentStep.toString());
+      console.log('💾 Saved transaction state:', { createdTransactionId, currentStep });
+    }
+  }, [createdTransactionId, currentStep]);
 
   const steps = [
     { 
@@ -53,72 +74,52 @@ const TransactionSetup = () => {
       title: userMode === 'Seller' ? 'Select Buyer' : 'Select Seller', 
       component: 'contact' 
     },
-    { id: 2, title: 'Transaction Type', component: 'type' },
-    { id: 3, title: 'Transaction Details', component: 'details' },
-    { id: 4, title: 'Send Contract', component: 'contract' }
+    { id: 2, title: 'Create Smart Contract', component: 'contract' }
   ];
 
   const handleNext = async () => {
-    if (currentStep === 3) {
-      // Create transaction before going to contract step
-      await createTransactionAndProceed();
+    if (currentStep === 1) {
+      // Create empty transaction when moving to contract step
+      if (!user || !transactionData.contact) {
+        toast.error('Please select a contact');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const isSeller = userMode === 'Seller';
+        
+        // Create transaction with placeholder amount (will be updated when form is submitted)
+        const { data, error } = await supabase
+          .from('transactions')
+          .insert([{
+            title: 'Transaction (Details in Contract)',
+            amount: 1, // Placeholder amount, will be updated in SmartContractBuilder
+            description: '',
+            seller_id: isSeller ? user.id : transactionData.contact.id,
+            seller_phone: isSeller ? (user.user_metadata?.phone || user.phone) : transactionData.contact.phone,
+            delivery_date: new Date().toISOString(),
+            buyer_id: isSeller ? transactionData.contact.id : user.id,
+            status: 'created'
+          }])
+          .select('id')
+          .single();
+
+        if (error) throw error;
+
+        if (data?.id) {
+          setCreatedTransactionId(data.id);
+          setCurrentStep(2);
+          toast.success('Ready to fill contract details');
+        }
+      } catch (error: any) {
+        console.error('❌ Transaction creation failed:', error);
+        toast.error(error?.message || 'Failed to create transaction');
+      } finally {
+        setLoading(false);
+      }
     } else if (currentStep < steps.length) {
       setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const createTransactionAndProceed = async () => {
-    if (!user || !transactionData.contact || !transactionData.type || !transactionData.details) {
-      toast.error('Missing required information');
-      return;
-    }
-
-    // Calculate amount based on transaction details
-    // Parse as integer to avoid floating-point precision issues
-    const amount = parseInt(transactionData.details.price || '0', 10);
-    if (amount <= 0) {
-      toast.error('Please enter a valid amount');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      console.log('📤 Creating transaction with payload:', {
-        title: transactionData.details.productName || transactionData.details.serviceDescription || 'Transaction',
-        amount,
-        description: transactionData.details.description,
-        seller_id: userMode === 'Seller' ? user.id : transactionData.contact.id,
-        buyer_id: userMode === 'Buyer' ? user.id : transactionData.contact.id,
-        seller_phone: userMode === 'Seller' ? (user.user_metadata?.phone || user.phone) : transactionData.contact.phone,
-        delivery_date: transactionData.details.deliveryDate || transactionData.details.completionDate
-      });
-
-      const isSeller = userMode === 'Seller';
-      const transactionId = await createTransaction({
-        title: transactionData.details.productName || transactionData.details.serviceDescription || 'Transaction',
-        amount,
-        description: transactionData.details.description || '',
-        seller_id: isSeller ? user.id : transactionData.contact.id,
-        seller_phone: isSeller ? (user.user_metadata?.phone || user.phone) : transactionData.contact.phone,
-        delivery_date: transactionData.details.deliveryDate || transactionData.details.completionDate,
-        buyer_id: isSeller ? transactionData.contact.id : user.id
-      });
-
-      console.log('✅ Transaction created successfully with ID:', transactionId);
-      
-      if (transactionId) {
-        setCreatedTransactionId(transactionId);
-        setCurrentStep(4);
-        toast.success('Transaction created! Now create and send a contract.');
-      } else {
-        throw new Error('Transaction was created but no ID was returned');
-      }
-    } catch (error: any) {
-      console.error('❌ Transaction creation failed:', error);
-      toast.error(error?.message || 'Failed to create transaction');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -126,6 +127,9 @@ const TransactionSetup = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     } else {
+      // Clear session when going back to dashboard
+      sessionStorage.removeItem('currentTransactionId');
+      sessionStorage.removeItem('transactionSetupStep');
       navigate('/dashboard');
     }
   };
@@ -152,40 +156,32 @@ const TransactionSetup = () => {
           </div>
         );
       case 2:
-        return (
-          <TransactionTypeSelection
-            selectedType={transactionData.type}
-            onTypeSelect={(type) => updateTransactionData('type', type)}
-          />
-        );
-      case 3:
-        return (
-          <TransactionDetails
-            transactionType={transactionData.type}
-            details={transactionData.details}
-            onDetailsUpdate={(details) => updateTransactionData('details', details)}
-          />
-        );
-      case 4:
         return createdTransactionId ? (
           <div className="space-y-4">
             <div className="text-center mb-6">
-              <h3 className="font-semibold text-lg">Send Contract</h3>
+              <h3 className="font-semibold text-lg">📜 Smart Contract Builder</h3>
               <p className="text-sm text-muted-foreground">
-                Create and send a contract to formalize the transaction terms
+                Select transaction type and fill industry-specific details to generate your contract
               </p>
             </div>
 
-            <ContractSender
-              transactionId={createdTransactionId}
-              onContractSent={() => {
-                toast.success('Contract sent successfully! 🎉');
-                navigate('/contracts');
+            <SmartContractBuilder
+              transaction={{
+                id: createdTransactionId,
+                title: 'Transaction',
+                description: '',
+                seller_id: transactionData.role === 'seller' ? user?.id || '' : transactionData.contact?.id || '',
+                buyer_id: transactionData.role === 'buyer' ? user?.id || '' : transactionData.contact?.id || '',
+                amount: 0,
+                industry: '',
+                type: ''
               }}
-              preSelectedRecipient={{
-                id: transactionData.contact!.id,
-                name: transactionData.contact!.name,
-                phone: transactionData.contact!.phone
+              onContractGenerated={() => {
+                toast.success('Contract generated successfully! 🎉');
+                // Clear session before navigating
+                sessionStorage.removeItem('currentTransactionId');
+                sessionStorage.removeItem('transactionSetupStep');
+                navigate('/contracts');
               }}
             />
           </div>
@@ -204,10 +200,6 @@ const TransactionSetup = () => {
       case 1:
         return transactionData.contact;
       case 2:
-        return transactionData.type;
-      case 3:
-        return Object.keys(transactionData.details).length > 0 && transactionData.details.price;
-      case 4:
         return createdTransactionId;
       default:
         return false;

@@ -62,17 +62,17 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				// Bharose Pe custom colors updated to match new theme
+				// Bharose Pe custom colors - using CSS variables for dark theme support
 				bharose: {
-					primary: "#333333",      // Dark gray primary
-					secondary: "#FF7E33",    // Orange accent (keeping this)
-					light: "#F5F7FA",        // Light gray background
-					dark: "#222222",         // Dark gray
-					gray: "#F5F7FA",         // Light gray background
-					text: "#333333",         // Dark text
-					success: "#00C853",      // Success green
-					warning: "#FFC107",      // Warning yellow
-					error: "#FF5252",        // Error red
+					primary: 'hsl(var(--bharose-primary))',
+					secondary: 'hsl(var(--bharose-secondary))',
+					light: 'hsl(var(--bharose-light))',
+					dark: 'hsl(var(--bharose-dark))',
+					gray: 'hsl(var(--bharose-gray))',
+					text: 'hsl(var(--bharose-text))',
+					success: 'hsl(var(--bharose-success))',
+					warning: 'hsl(var(--bharose-warning))',
+					error: 'hsl(var(--bharose-error))',
 				}
 			},
 			borderRadius: {

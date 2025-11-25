@@ -34,6 +34,14 @@ const Profile = () => {
     name: '',
     phone: '',
     email: '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: '',
+    panNumber: '',
+    gstNumber: '',
+    businessName: '',
+    businessType: '',
     accountNumber: '••••••1234',
     ifscCode: '•••••0001',
     upiId: '',
@@ -50,13 +58,21 @@ const Profile = () => {
       const currentEmail = user.email || '';
       setFormData({
         name: profile.full_name || user.user_metadata?.full_name || '',
-        phone: profile.phone || user.user_metadata?.phone || '',
+        phone: profile.phone || '',
         email: currentEmail,
+        address: profile.address || '',
+        city: profile.city || '',
+        state: profile.state || '',
+        pincode: profile.pincode || '',
+        panNumber: profile.pan_number || '',
+        gstNumber: profile.gst_number || '',
+        businessName: profile.business_name || '',
+        businessType: profile.business_type || '',
         accountNumber: '••••••1234',
         ifscCode: '•••••0001',
-        upiId: `${(profile.full_name || 'user').toLowerCase().replace(' ', '')}@upi`,
+        upiId: profile.business_name ? `${profile.business_name.toLowerCase().replace(' ', '')}@upi` : 'user@upi',
         bio: 'Experienced trader with focus on electronics and services',
-        location: 'Mumbai, Maharashtra',
+        location: profile.city && profile.state ? `${profile.city}, ${profile.state}` : 'Not specified',
         businessHours: '9 AM - 6 PM'
       });
       setOriginalEmail(currentEmail);
@@ -142,6 +158,19 @@ const Profile = () => {
       return;
     }
     
+    // Format pincode to only allow digits
+    if (name === 'pincode') {
+      const digits = value.replace(/\D/g, '');
+      if (digits.length <= 6) {
+        setFormData(prev => ({ ...prev, [name]: digits }));
+      }
+      return;
+    }
+    
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (name: string, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -162,12 +191,40 @@ const Profile = () => {
         return;
       }
 
-      // Update profile data (name, phone, etc.)
+      if (formData.pincode && formData.pincode.length > 0 && formData.pincode.length !== 6) {
+        toast.error('Pincode must be exactly 6 digits');
+        return;
+      }
+
+      // Validate PAN format if provided
+      if (formData.panNumber && formData.panNumber.length > 0) {
+        if (formData.panNumber.length !== 10) {
+          toast.error('PAN number must be exactly 10 characters');
+          return;
+        }
+      }
+
+      // Validate GST format if provided
+      if (formData.gstNumber && formData.gstNumber.length > 0) {
+        if (formData.gstNumber.length !== 15) {
+          toast.error('GST number must be exactly 15 characters');
+          return;
+        }
+      }
+
+      // Update profile data with all fields
       if (profile) {
         await updateProfile({
           full_name: formData.name.trim(),
           phone: formData.phone || null,
-          role: profile.role
+          address: formData.address?.trim() || null,
+          city: formData.city?.trim() || null,
+          state: formData.state?.trim() || null,
+          pincode: formData.pincode?.trim() || null,
+          pan_number: formData.panNumber?.toUpperCase().trim() || null,
+          gst_number: formData.gstNumber?.toUpperCase().trim() || null,
+          business_name: formData.businessName?.trim() || null,
+          business_type: formData.businessType || null
         });
       }
 
@@ -177,6 +234,7 @@ const Profile = () => {
       }
 
       setIsEditing(false);
+      toast.success('Profile updated successfully!');
     } catch (error) {
       // Error handling is done in the hooks
     } finally {
@@ -221,9 +279,6 @@ const Profile = () => {
         {/* Profile Header */}
         <ProfileHeader
           formData={formData}
-          currentProfile={{
-            role: userMode
-          }}
           profileCompleteness={profileCompleteness}
           isEditing={isEditing}
           getInitials={getInitials}
@@ -252,6 +307,7 @@ const Profile = () => {
               formData={formData}
               isEditing={isEditing}
               handleInputChange={handleInputChange}
+              handleSelectChange={handleSelectChange}
             />
           </TabsContent>
           

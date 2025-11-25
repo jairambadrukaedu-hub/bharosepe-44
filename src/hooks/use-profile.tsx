@@ -7,8 +7,17 @@ export interface UserProfile {
   id: string;
   user_id: string;
   full_name?: string;
+  email?: string;
   phone?: string;
-  role?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  pan_number?: string;
+  gst_number?: string;
+  business_name?: string;
+  business_type?: string;
+  verified_phone?: boolean;
   avatar_url?: string;
   created_at: string;
   updated_at: string;
@@ -62,8 +71,17 @@ export const useProfile = () => {
 
   const updateProfile = async (updates: {
     full_name?: string;
+    email?: string;
     phone?: string;
-    role?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    pan_number?: string;
+    gst_number?: string;
+    business_name?: string;
+    business_type?: string;
+    verified_phone?: boolean;
     avatar_url?: string;
   }) => {
     if (!user) throw new Error('User not authenticated');
@@ -136,7 +154,15 @@ export const useProfile = () => {
   const createProfile = async (profileData: {
     full_name: string;
     phone?: string;
-    role?: string;
+    email?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    pan_number?: string;
+    gst_number?: string;
+    business_name?: string;
+    business_type?: string;
   }) => {
     if (!user) throw new Error('User not authenticated');
 
@@ -162,7 +188,15 @@ export const useProfile = () => {
           user_id: user.id,
           full_name: profileData.full_name.trim(),
           phone: profileData.phone?.replace(/\D/g, '') || null,
-          role: profileData.role || 'Buyer'
+          email: profileData.email?.trim() || null,
+          address: profileData.address?.trim() || null,
+          city: profileData.city?.trim() || null,
+          state: profileData.state?.trim() || null,
+          pincode: profileData.pincode?.trim() || null,
+          pan_number: profileData.pan_number?.toUpperCase().trim() || null,
+          gst_number: profileData.gst_number?.toUpperCase().trim() || null,
+          business_name: profileData.business_name?.trim() || null,
+          business_type: profileData.business_type || null
         })
         .select()
         .single();

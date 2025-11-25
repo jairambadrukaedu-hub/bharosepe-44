@@ -97,6 +97,71 @@
   }
 }
 
+/* Dark mode friendly color utilities */
+.bg-white {
+  @apply bg-background;
+}
+
+.text-black {
+  @apply text-foreground;
+}
+
+.text-gray-700 {
+  @apply dark:text-gray-300;
+}
+
+.text-gray-800 {
+  @apply dark:text-gray-200;
+}
+
+.text-gray-900 {
+  @apply dark:text-gray-100;
+}
+
+.bg-gray-50 {
+  @apply dark:bg-slate-900;
+}
+
+.bg-gray-100 {
+  @apply dark:bg-slate-800;
+}
+
+.bg-gray-200 {
+  @apply dark:bg-slate-700;
+}
+
+.bg-blue-50 {
+  @apply dark:bg-blue-950;
+}
+
+.bg-blue-100 {
+  @apply dark:bg-blue-900;
+}
+
+.border-gray-200 {
+  @apply dark:border-slate-700;
+}
+
+.border-gray-300 {
+  @apply dark:border-slate-600;
+}
+
+.border-blue-200 {
+  @apply dark:border-blue-800;
+}
+
+.border-blue-300 {
+  @apply dark:border-blue-700;
+}
+
+.text-blue-800 {
+  @apply dark:text-blue-300;
+}
+
+.text-blue-900 {
+  @apply dark:text-blue-200;
+}
+
 @layer components {
   .bharose-container {
     @apply max-w-md mx-auto min-h-screen flex flex-col p-4;
@@ -139,7 +204,7 @@
   }
   
   .toggle-switch-thumb {
-    @apply pointer-events-none absolute top-0 left-0 inline-block h-11 w-28 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out;
+    @apply pointer-events-none absolute top-0 left-0 inline-block h-11 w-28 transform rounded-full bg-white dark:bg-slate-800 shadow-lg ring-0 transition duration-200 ease-in-out;
   }
   
   .toggle-label {
@@ -155,7 +220,7 @@
   }
   
   .timeline-marker::before {
-    @apply absolute top-10 left-1/2 h-full w-0.5 -translate-x-1/2 bg-bharose-gray content-[''];
+    @apply absolute top-10 left-1/2 h-full w-0.5 -translate-x-1/2 bg-bharose-gray dark:bg-slate-700 content-[''];
   }
   
   .timeline-text {
@@ -171,6 +236,6 @@
   }
   
   .timeline-marker-pending {
-    @apply bg-bharose-gray text-bharose-text;
+    @apply bg-bharose-gray dark:bg-slate-700 text-bharose-text;
   }
 }

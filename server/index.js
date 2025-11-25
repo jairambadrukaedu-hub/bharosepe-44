@@ -8,6 +8,14 @@ const axios = require('axios');
 const path = require('path');
 require('dotenv').config();
 
+// Twilio Configuration
+const twilio = require('twilio');
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || '+18288889146';
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -56,6 +64,17 @@ db.serialize(() => {
     called_at DATETIME
   )`);
   
+  // Create OTP verification table
+  db.run(`CREATE TABLE IF NOT EXISTS otp_verifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    phone_number TEXT NOT NULL UNIQUE,
+    otp_code TEXT NOT NULL,
+    attempts INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,
+    verified BOOLEAN DEFAULT 0
+  )`);
+  
   // Add call_id column if it doesn't exist (for existing databases)
   db.run(`ALTER TABLE leads ADD COLUMN call_id TEXT`, (err) => {
     if (err && !err.message.includes('duplicate column')) {
@@ -97,6 +116,227 @@ app.post('/api/auth/login', (req, res) => {
     });
   }
 });
+
+// ============= OTP VERIFICATION ENDPOINTS =============
+
+// Generate and send OTP
+app.post('/api/otp/send', async (req, res) => {
+  try {
+    let { phone_number } = req.body;
+    
+    if (!phone_number) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+    
+    // Clean up phone number - remove spaces, dashes, parentheses
+    phone_number = phone_number.replace(/[\s\-\(\)]/g, '');
+    
+    // If it doesn't start with +, add it
+    if (!phone_number.startsWith('+')) {
+      phone_number = '+' + phone_number;
+    }
+    
+    // Validate phone format (should start with + and have at least 10 digits)
+    const phoneRegex = /^\+\d{10,}$/;
+    if (!phoneRegex.test(phone_number)) {
+      return res.status(400).json({ 
+        error: 'Invalid phone number format. Use format: +1234567890 (with country code)',
+        received: phone_number
+      });
+    }
+    
+    console.log(`📱 Processing phone number: ${phone_number}`);
+    
+    // Generate 6-digit OTP
+    const otp_code = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Set expiry to 10 minutes from now
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    
+    // Check if OTP already exists and delete it
+    db.run('DELETE FROM otp_verifications WHERE phone_number = ?', [phone_number], (err) => {
+      if (err) {
+        console.error('Error deleting old OTP:', err);
+      }
+      
+      // Insert new OTP
+      db.run(
+        'INSERT INTO otp_verifications (phone_number, otp_code, expires_at) VALUES (?, ?, ?)',
+        [phone_number, otp_code, expiresAt.toISOString()],
+        async (err) => {
+          if (err) {
+            console.error('Database error:', err);
+            return res.status(500).json({ error: 'Failed to generate OTP' });
+          }
+          
+          // Check if we're in development mode (try to send SMS, but don't fail if it doesn't work)
+          const isDev = process.env.NODE_ENV !== 'production';
+          
+          if (isDev) {
+            // Development mode: Log OTP and return it in response
+            console.log(`📱 [DEV MODE] OTP generated for ${phone_number}: ${otp_code}`);
+            console.log(`✅ OTP sent to ${phone_number}: ${otp_code}`);
+            
+            return res.json({
+              success: true,
+              message: 'OTP sent successfully (DEV MODE)',
+              phone_number: phone_number.slice(-4),
+              otp_code: otp_code, // Return OTP in dev mode for testing
+              expiresIn: 600
+            });
+          }
+          
+          // Production mode: Try to send via Twilio
+          try {
+            console.log(`📱 Attempting to send OTP via Twilio...`);
+            console.log(`   To: ${phone_number}`);
+            console.log(`   From: ${TWILIO_PHONE_NUMBER}`);
+            console.log(`   OTP: ${otp_code}`);
+            
+            await twilioClient.messages.create({
+              body: `Your BharosePe OTP is: ${otp_code}. Valid for 10 minutes.`,
+              from: TWILIO_PHONE_NUMBER,
+              to: phone_number
+            });
+            
+            console.log(`✅ OTP sent successfully to ${phone_number}`);
+            
+            res.json({
+              success: true,
+              message: 'OTP sent successfully',
+              phone_number: phone_number.slice(-4),
+              expiresIn: 600
+            });
+          } catch (twilioError) {
+            console.error('❌ Twilio SMS error:', twilioError.message);
+            console.error('   Code:', twilioError.code);
+            console.error('   Status:', twilioError.status);
+            
+            res.status(500).json({ 
+              error: 'Failed to send OTP via SMS',
+              details: twilioError.message,
+              code: twilioError.code 
+            });
+          }
+        }
+      );
+    });
+  } catch (error) {
+    console.error('OTP send error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Verify OTP
+app.post('/api/otp/verify', (req, res) => {
+  try {
+    const { phone_number, otp_code } = req.body;
+    
+    if (!phone_number || !otp_code) {
+      return res.status(400).json({ error: 'Phone number and OTP code are required' });
+    }
+    
+    // Query OTP from database
+    db.get(
+      'SELECT * FROM otp_verifications WHERE phone_number = ? ORDER BY created_at DESC LIMIT 1',
+      [phone_number],
+      (err, row) => {
+        if (err) {
+          console.error('Database error:', err);
+          return res.status(500).json({ error: 'Database error' });
+        }
+        
+        if (!row) {
+          return res.status(404).json({ error: 'No OTP found for this phone number. Request a new one.' });
+        }
+        
+        // Check if OTP is expired
+        if (new Date() > new Date(row.expires_at)) {
+          return res.status(400).json({ error: 'OTP has expired. Request a new one.' });
+        }
+        
+        // Check max attempts
+        if (row.attempts >= 3) {
+          return res.status(400).json({ error: 'Maximum OTP attempts exceeded. Request a new OTP.' });
+        }
+        
+        // Verify OTP code
+        if (row.otp_code !== otp_code.toString()) {
+          // Increment attempts
+          db.run(
+            'UPDATE otp_verifications SET attempts = attempts + 1 WHERE id = ?',
+            [row.id],
+            (err) => {
+              if (err) console.error('Error updating attempts:', err);
+            }
+          );
+          return res.status(400).json({ 
+            error: 'Invalid OTP code',
+            attemptsRemaining: 3 - (row.attempts + 1)
+          });
+        }
+        
+        // Mark as verified
+        db.run(
+          'UPDATE otp_verifications SET verified = 1 WHERE id = ?',
+          [row.id],
+          (err) => {
+            if (err) console.error('Error marking OTP as verified:', err);
+          }
+        );
+        
+        console.log(`✅ OTP verified for ${phone_number}`);
+        
+        res.json({
+          success: true,
+          message: 'Phone number verified successfully',
+          phone_number: phone_number,
+          verified: true
+        });
+      }
+    );
+  } catch (error) {
+    console.error('OTP verify error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Check OTP status
+app.get('/api/otp/status/:phone_number', (req, res) => {
+  try {
+    const { phone_number } = req.params;
+    
+    db.get(
+      'SELECT verified, attempts, expires_at FROM otp_verifications WHERE phone_number = ? ORDER BY created_at DESC LIMIT 1',
+      [phone_number],
+      (err, row) => {
+        if (err) {
+          console.error('Database error:', err);
+          return res.status(500).json({ error: 'Database error' });
+        }
+        
+        if (!row) {
+          return res.json({ verified: false, exists: false });
+        }
+        
+        const isExpired = new Date() > new Date(row.expires_at);
+        
+        res.json({
+          verified: row.verified,
+          exists: true,
+          isExpired: isExpired,
+          attemptsUsed: row.attempts,
+          attemptsRemaining: 3 - row.attempts
+        });
+      }
+    );
+  } catch (error) {
+    console.error('OTP status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============= END OTP ENDPOINTS =============
 
 // Get all leads (filtered by campaign type)
 app.get('/api/leads', (req, res) => {

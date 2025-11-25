@@ -5,7 +5,6 @@ export interface Contact {
   id: string; // This will be the user_id
   full_name: string;
   phone: string;
-  role: string;
 }
 
 export const useContactSearch = () => {
@@ -42,8 +41,7 @@ export const useContactSearch = () => {
       const validContacts = (data || []).map(contact => ({
         id: contact.user_id,
         full_name: contact.full_name || '',
-        phone: contact.phone || '',
-        role: contact.role || ''
+        phone: contact.phone || ''
       }));
       
       console.log('✅ Final contacts:', validContacts);
@@ -78,7 +76,7 @@ export const useContactSearch = () => {
       // Search for any of these patterns
       const { data, error } = await supabase
         .from('profiles')
-        .select('user_id, full_name, phone, role')
+        .select('user_id, full_name, phone')
         .not('phone', 'is', null)
         .or(searchPatterns.map(pattern => `phone.eq.${pattern}`).join(','))
         .maybeSingle();
@@ -93,8 +91,7 @@ export const useContactSearch = () => {
         return {
           id: data.user_id,
           full_name: data.full_name || '',
-          phone: data.phone || '',
-          role: data.role || ''
+          phone: data.phone || ''
         };
       }
       
@@ -102,7 +99,7 @@ export const useContactSearch = () => {
       console.log('🔄 Trying partial match...');
       const { data: partialData, error: partialError } = await supabase
         .from('profiles')
-        .select('user_id, full_name, phone, role')
+        .select('user_id, full_name, phone')
         .not('phone', 'is', null)
         .or(searchPatterns.map(pattern => `phone.ilike.%${pattern}%`).join(','))
         .limit(1)
@@ -118,8 +115,7 @@ export const useContactSearch = () => {
         return {
           id: partialData.user_id,
           full_name: partialData.full_name || '',
-          phone: partialData.phone || '',
-          role: partialData.role || ''
+          phone: partialData.phone || ''
         };
       }
       

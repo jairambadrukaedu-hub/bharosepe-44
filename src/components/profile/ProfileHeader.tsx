@@ -12,9 +12,6 @@ interface ProfileHeaderProps {
     phone: string;
     email: string;
   };
-  currentProfile: {
-    role: string;
-  };
   profileCompleteness: number;
   isEditing: boolean;
   getInitials: (name: string) => string;
@@ -22,7 +19,6 @@ interface ProfileHeaderProps {
 
 const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   formData,
-  currentProfile,
   profileCompleteness,
   isEditing,
   getInitials
@@ -37,7 +33,6 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
       <h2 className="text-xl font-semibold">{formData.name}</h2>
       <p className="text-muted-foreground">{formData.phone}</p>
       <p className="text-muted-foreground text-sm">{formData.email}</p>
-      <p className="text-xs text-bharose-primary mt-1">{currentProfile.role}</p>
       
       {/* Profile Completeness */}
       <div className="w-full max-w-xs mt-4">

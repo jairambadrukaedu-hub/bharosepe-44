@@ -8,19 +8,24 @@
     "dev": "nodemon index.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "axios": "^1.4.0",
     "cors": "^2.8.5",
+    "csv-parser": "^3.0.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "multer": "^1.4.5-lts.1",
     "sqlite3": "^5.1.6",
-    "csv-parser": "^3.0.0",
-    "xlsx": "^0.18.5",
-    "axios": "^1.4.0",
-    "dotenv": "^16.3.1"
+    "twilio": "^4.23.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
   },
-  "keywords": ["express", "sqlite", "api"],
+  "keywords": [
+    "express",
+    "sqlite",
+    "api"
+  ],
   "author": "Lead Manager Team",
   "license": "MIT"
 }

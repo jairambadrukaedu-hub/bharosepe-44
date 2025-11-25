@@ -7,21 +7,24 @@ import type { PluginOption } from 'vite';
 export default defineConfig(async ({ mode }) => {
   const plugins: PluginOption[] = [react()];
   
-  // Only add componentTagger in development mode and if available
-  if (mode === 'development') {
-    try {
-      const { componentTagger } = await import("lovable-tagger");
-      plugins.push(componentTagger());
-    } catch (e) {
-      // lovable-tagger not available, skip it
-      console.warn('lovable-tagger not available, skipping...');
-    }
-  }
+  // Skip componentTagger for now to fix server exit issue
+  // TODO: Re-enable when stable
+  // if (mode === 'development') {
+  //   try {
+  //     const { componentTagger } = await import("lovable-tagger");
+  //     plugins.push(componentTagger());
+  //   } catch (e) {
+  //     console.warn('lovable-tagger not available, skipping...');
+  //   }
+  // }
 
   return {
     server: {
-      host: "::",
-      port: 8080,
+      host: "0.0.0.0",
+      port: 3000,
+      strictPort: false,
+      open: false,
+      middlewareMode: false,
     },
     plugins,
     resolve: {

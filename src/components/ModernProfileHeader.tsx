@@ -7,7 +7,9 @@ import {
   LogOut, 
   Bell,
   ChevronDown,
-  Menu
+  Menu,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -24,6 +26,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/use-auth';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useUserModeContext } from './UserModeContext';
+import { useTheme } from '@/hooks/use-theme';
 
 interface ModernProfileHeaderProps {
   userName?: string;
@@ -40,7 +43,10 @@ const ModernProfileHeader: React.FC<ModernProfileHeaderProps> = ({
   const { user, signOut } = useAuth();
   const { notifications } = useNotifications();
   const { userMode, setUserMode } = useUserModeContext();
+  const { theme, setTheme } = useTheme();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   
   const unreadCount = notifications.filter(n => !n.read).length;
   const displayName = userName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
@@ -152,6 +158,25 @@ const ModernProfileHeader: React.FC<ModernProfileHeaderProps> = ({
             >
               <HelpCircle className="mr-2 h-4 w-4" />
               Help & Support
+            </DropdownMenuItem>
+            
+            <DropdownMenuSeparator />
+            
+            <DropdownMenuItem 
+              className="cursor-pointer"
+              onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            >
+              {isDark ? (
+                <>
+                  <Sun className="mr-2 h-4 w-4" />
+                  Light Theme
+                </>
+              ) : (
+                <>
+                  <Moon className="mr-2 h-4 w-4" />
+                  Dark Theme
+                </>
+              )}
             </DropdownMenuItem>
             
             <DropdownMenuSeparator />

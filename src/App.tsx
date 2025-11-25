@@ -8,7 +8,6 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/hooks/use-auth';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorBoundary from '@/components/ErrorBoundary';
-import HealthCheck from '@/components/HealthCheck';
 
 // Critical pages (loaded immediately)
 import Index from '@/pages/Index';
@@ -98,7 +97,6 @@ function App() {
               </Suspense>
             </Router>
             <Toaster />
-            <HealthCheck />
           </div>
         </ErrorBoundary>
       </UserModeProvider>

@@ -62,22 +62,54 @@ export const useAuth = create<AuthStore>((set, get) => {
   signUp: async (email: string, password: string, userData = {}) => {
     const redirectUrl = `${window.location.origin}/dashboard`;
     
-    const { error } = await supabase.auth.signUp({
+    // Create auth user ONLY - don't pass userData which may have invalid fields
+    // The Supabase trigger will create a basic profile automatically
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: redirectUrl,
-        data: userData
+        emailRedirectTo: redirectUrl
       }
     });
 
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success('Account created! Please check your email to verify.');
+    if (authError) {
+      console.error('Auth error:', authError);
+      toast.error(authError.message);
+      return { error: authError };
     }
 
-    return { error };
+    // After successful auth, enhance the profile in the background
+    // The trigger creates basic profile, we add custom fields
+    if (authData.user) {
+      setTimeout(async () => {
+        try {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .update({
+              full_name: userData?.full_name || null,
+              phone: userData?.phone || null,
+              address: userData?.address || null,
+              city: userData?.city || null,
+              state: userData?.state || null,
+              pincode: userData?.pincode || null,
+              pan_number: userData?.pan_number || null,
+              gst_number: userData?.gst_number || null,
+              business_name: userData?.business_name || null,
+              business_type: userData?.business_type || null
+            })
+            .eq('id', authData.user.id);
+
+          if (profileError) {
+            console.warn('Profile update (non-critical):', profileError);
+          }
+        } catch (err) {
+          console.warn('Error updating profile:', err);
+        }
+      }, 500);
+    }
+
+    toast.success('Account created! Please check your email to verify.');
+    return { error: null };
   },
 
   signIn: async (email: string, password: string) => {
