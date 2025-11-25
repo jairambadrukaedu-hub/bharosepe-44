@@ -8,13 +8,16 @@ const axios = require('axios');
 const path = require('path');
 require('dotenv').config();
 
-// Twilio Configuration
-const twilio = require('twilio');
-const twilioClient = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
-const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || '+18288889146';
+// Twilio Configuration (optional - only if credentials are provided)
+let twilioClient = null;
+if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_ACCOUNT_SID !== 'your_account_sid_here') {
+  const twilio = require('twilio');
+  twilioClient = twilio(
+    process.env.TWILIO_ACCOUNT_SID,
+    process.env.TWILIO_AUTH_TOKEN
+  );
+}
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || '+1234567890';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -186,7 +189,18 @@ app.post('/api/otp/send', async (req, res) => {
             });
           }
           
-          // Production mode: Try to send via Twilio
+          // Production mode: Try to send via Twilio (if configured)
+          if (!twilioClient) {
+            console.log(`⚠️  Twilio not configured. Skipping SMS send.`);
+            res.json({
+              success: true,
+              message: 'OTP generated (SMS not configured)',
+              phone_number: phone_number.slice(-4),
+              expiresIn: 600
+            });
+            return;
+          }
+
           try {
             console.log(`📱 Attempting to send OTP via Twilio...`);
             console.log(`   To: ${phone_number}`);
