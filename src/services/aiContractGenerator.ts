@@ -202,6 +202,9 @@ ${formData.buyerResponsibilities || buildDefaultBuyerResponsibilities(template)}
 SELLER RESPONSIBILITIES:
 ${formData.sellerResponsibilities || buildDefaultSellerResponsibilities(template)}
 
+SPECIAL TERMS & CONDITIONS:
+${buildAllFormFields(formData)}
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 PART 6: MANDATORY LEGAL CLAUSES (INDIAN CONTRACT LAW)
@@ -519,6 +522,49 @@ const buildDefaultSellerResponsibilities = (template: IndustryTemplate): string 
 • Respond to buyer inquiries promptly
 • Handle disputes professionally
 • Cooperate in mediation if needed`;
+};
+
+/**
+ * Build all form fields into contract - includes all filled tabs/templates
+ */
+const buildAllFormFields = (formData: Record<string, any>): string => {
+  // Fields to skip (already covered in main contract sections)
+  const skippedFields = new Set([
+    'itemDescription', 'deliveryDate', 'inspectionWindow', 'returnPolicy',
+    'warrantyPeriod', 'buyerResponsibilities', 'sellerResponsibilities',
+    'jurisdiction', 'deliveryMode', 'projectScope', 'workScope',
+    'materialsIncluded', 'price', 'totalPrice', 'amount'
+  ]);
+
+  const customTerms: string[] = [];
+
+  Object.entries(formData).forEach(([key, value]) => {
+    // Skip empty values, null, undefined, and known skipped fields
+    if (!value || skippedFields.has(key)) return;
+    if (typeof value === 'string' && value.trim() === '') return;
+
+    // Format key to readable label
+    const label = key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .trim();
+
+    // Format value
+    let displayValue = value;
+    if (typeof value === 'object') {
+      displayValue = JSON.stringify(value, null, 2);
+    } else if (Array.isArray(value)) {
+      displayValue = value.join(', ');
+    }
+
+    customTerms.push(`• **${label}**: ${displayValue}`);
+  });
+
+  if (customTerms.length === 0) {
+    return 'All terms as per transaction discussion.';
+  }
+
+  return `ADDITIONAL TRANSACTION DETAILS:\n${customTerms.join('\n')}\n\nThese terms are binding and part of this contract.`;
 };
 
 /**
