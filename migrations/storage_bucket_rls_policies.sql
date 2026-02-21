@@ -1,0 +1,130 @@
+-- ============================================================================
+-- STORAGE BUCKET RLS POLICIES - Enable Photo Uploads
+-- ============================================================================
+-- WARNING: Cannot be run via SQL due to Supabase permissions!
+-- You MUST set up these policies manually via Supabase Dashboard UI
+--
+-- Purpose: Set up Row Level Security policies for the form-uploads bucket
+-- This allows authenticated users to upload and access their own files
+--
+-- Location: Supabase Dashboard > Authentication > Policies
+-- ============================================================================
+
+-- MANUAL SETUP IN SUPABASE DASHBOARD (Required):
+-- ============================================================================
+-- IMPORTANT: These policies CANNOT be created via SQL!
+-- You must use the Supabase Dashboard UI following these steps:
+--
+-- 1. Go to: Supabase Dashboard > Authentication > Policies
+-- 2. Select table: storage.objects
+-- 3. Add these 4 policies:
+--
+-- ============================================================================
+-- POLICY 1 - Allow Upload (INSERT)
+-- ============================================================================
+-- Name: Users can upload to form-uploads bucket
+-- Roles: authenticated
+-- Expression:
+--   bucket_id = 'form-uploads' 
+--   AND (storage.foldername(name))[1] = auth.uid()::text
+--
+-- ============================================================================
+-- POLICY 2 - Allow Download (SELECT)
+-- ============================================================================
+-- Name: Users can read form-uploads bucket
+-- Roles: authenticated
+-- Expression:
+--   bucket_id = 'form-uploads' 
+--   AND (storage.foldername(name))[1] = auth.uid()::text
+--
+-- ============================================================================
+-- POLICY 3 - Allow Update (UPDATE)
+-- ============================================================================
+-- Name: Users can update form-uploads bucket
+-- Roles: authenticated
+-- Expression:
+--   bucket_id = 'form-uploads' 
+--   AND (storage.foldername(name))[1] = auth.uid()::text
+--
+-- ============================================================================
+-- POLICY 4 - Allow Delete (DELETE)
+-- ============================================================================
+-- Name: Users can delete form-uploads bucket
+-- Roles: authenticated
+-- Expression:
+--   bucket_id = 'form-uploads' 
+--   AND (storage.foldername(name))[1] = auth.uid()::text
+--
+-- ============================================================================
+-- VISUAL GUIDE - Step by Step in Dashboard:
+-- ============================================================================
+--
+-- Step 1: Click on "Authentication" in left sidebar
+-- Step 2: Click on "Policies" tab
+-- Step 3: In the "Table" dropdown, select: storage.objects
+-- Step 4: Click the orange "New Policy" button
+-- Step 5: Click "For INSERT" (first policy)
+-- Step 6: Fill in:
+--   - Policy name: "Users can upload to form-uploads bucket"
+--   - Allowed roles: Check "authenticated"
+--   - Expression: bucket_id = 'form-uploads' AND (storage.foldername(name))[1] = auth.uid()::text
+-- Step 7: Click "Review" then "Save policy"
+--
+-- Repeat Steps 4-7 for SELECT, UPDATE, and DELETE operations
+--
+-- ============================================================================
+-- BUCKET CONFIGURATION:
+-- ============================================================================
+-- Verify your bucket is configured correctly:
+--
+-- 1. Go to: Supabase Dashboard > Storage > Buckets
+-- 2. Click on "form-uploads" bucket
+-- 3. Verify Settings:
+--    - Name: form-uploads
+--    - Public: OFF (Private bucket)
+--    - File size limit: 52428800 bytes (50 MB)
+--    - Allowed MIME types:
+--      * image/jpeg
+--      * image/png
+--      * image/gif
+--      * image/webp
+--      * image/bmp
+--      * image/tiff
+--      * video/mp4
+--      * video/avi
+--      * video/mov
+--      * video/quicktime
+--      * video/webm
+--      * application/pdf
+--      * application/octet-stream
+--
+-- ============================================================================
+-- VERIFICATION:
+-- ============================================================================
+-- After adding policies, you can verify they exist by running this query
+-- in Supabase SQL Editor:
+--
+-- SELECT policy_name, definition, roles 
+-- FROM pg_policies 
+-- WHERE tablename = 'objects' 
+-- AND schemaname = 'storage' 
+-- AND policy_name LIKE '%form-uploads%';
+--
+-- You should see 4 policies listed (INSERT, SELECT, UPDATE, DELETE)
+--
+-- ============================================================================
+-- NOTES:
+-- ============================================================================
+-- - Storage policies cannot be modified via SQL (Supabase restriction)
+-- - You MUST use the Dashboard UI to add these policies
+-- - The form-uploads bucket must already exist
+-- - Users can only upload to folders matching their user ID
+-- - Policies are checked on every storage operation
+-- - After adding policies, uploads should work immediately
+-- - If still not working, check:
+--   1. User is authenticated (logged in)
+--   2. Bucket exists and is Private
+--   3. All 4 policies are added
+--   4. Browser cache cleared (Ctrl+Shift+Delete)
+--
+-- ============================================================================

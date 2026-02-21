@@ -705,6 +705,6 @@ export const INDUSTRY_TEMPLATES: Record<string, IndustryTemplate> = {
 };
 
 export const INDUSTRY_CATEGORIES = {
-  goods: ['electronics', 'furniture', 'clothing', 'vehicles', 'appliances'],
+  goods: ['electronics', 'furniture', 'fashion-apparel', 'vehicles'],
   services: ['software_development', 'home_repair', 'design', 'photography', 'events', 'cleaning', 'tutoring']
 };

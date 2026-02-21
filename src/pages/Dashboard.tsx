@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import BottomNavigation from '@/components/BottomNavigation';
 import { useTransactions } from '@/hooks/use-transactions';
 import DashboardAnalytics from '@/components/DashboardAnalytics';
@@ -33,26 +33,6 @@ const Dashboard = () => {
   } = useContracts();
   const { getActiveDisputes } = useDisputes();
   
-  // Redirect unauthenticated users to login
-  useEffect(() => {
-    const handleAuthRedirect = async () => {
-      if (!authLoading && !user) {
-        console.log('❌ No authenticated user found, redirecting to auth...');
-        navigate('/auth');
-      } else if (!authLoading && user) {
-        // Check if user needs to complete profile setup
-        const { checkUserProfileStatus } = useAuth.getState();
-        const hasPhone = await checkUserProfileStatus();
-        if (!hasPhone) {
-          console.log('📱 User needs to complete profile setup...');
-          navigate('/profile-setup');
-        }
-      }
-    };
-
-    handleAuthRedirect();
-  }, [user, authLoading, navigate]);
-
   // Show loading while auth is loading
   if (authLoading) {
     return (
@@ -62,9 +42,9 @@ const Dashboard = () => {
     );
   }
 
-  // Don't render anything if not authenticated
+  // Redirect unauthenticated users to login immediately
   if (!user) {
-    return null;
+    return <Navigate to="/app/auth" replace />;
   }
   
   // Calculate effective escrow balance using contract amounts

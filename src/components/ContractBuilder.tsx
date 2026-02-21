@@ -7,6 +7,7 @@ import {
 import { useTransactions } from '@/hooks/use-transactions';
 import { useUserModeContext } from '@/components/UserModeContext';
 import { useContracts } from '@/hooks/use-contracts';
+import PricingFormField from './PricingFormField';
 import { toast } from 'sonner';
 
 interface ContractBuilderProps {
@@ -35,6 +36,11 @@ const ContractBuilder: React.FC<ContractBuilderProps> = ({
     securityDeposit: 0,
     additionalTerms: ''
   });
+  const [pricingData, setPricingData] = useState({
+    baseAmount: 0,
+    platformFee: 0,
+    escrowAmount: 0
+  });
 
   const transaction = transactions.find(t => t.id === transactionId);
 
@@ -47,6 +53,19 @@ const ContractBuilder: React.FC<ContractBuilderProps> = ({
 
   const handlePaymentTermsChange = (value: string) => {
     setContract(prev => ({ ...prev, paymentTerms: value }));
+  };
+
+  const handlePlatformFeeCalculated = (fee: number) => {
+    setPricingData(prev => ({ ...prev, platformFee: fee }));
+  };
+
+  const handleEscrowCalculated = (escrow: number) => {
+    setPricingData(prev => ({ ...prev, escrowAmount: escrow }));
+  };
+
+  const handleBaseAmountChange = (amount: string) => {
+    const numAmount = parseFloat(amount) || 0;
+    setPricingData(prev => ({ ...prev, baseAmount: numAmount }));
   };
 
   const handleCreateContract = async () => {
@@ -79,9 +98,10 @@ const ContractBuilder: React.FC<ContractBuilderProps> = ({
   };
 
   const generateContractContent = () => {
-    const amount = transaction?.amount || 0;
-    const platformFee = Math.floor(amount * 0.01);
-    const escrowAmount = amount - platformFee;
+    // Use pricing data from our new calculator, fallback to transaction amount
+    const amount = pricingData.baseAmount || transaction?.amount || 0;
+    const platformFee = pricingData.platformFee || Math.floor(amount * 0.01);
+    const escrowAmount = pricingData.escrowAmount || (amount - platformFee);
 
     return `
 ╔════════════════════════════════════════════════════════════╗
@@ -228,9 +248,22 @@ Generated: ${new Date().toLocaleString('en-IN')}
     switch (currentStep) {
       case 1:
         return (
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
               <p className="text-sm font-medium text-blue-900">💡 How will payment be handled?</p>
+            </div>
+
+            {/* Pricing Calculator Section */}
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <PricingFormField
+                label="💰 Transaction Amount"
+                value={pricingData.baseAmount || transaction?.amount || 0}
+                onChange={handleBaseAmountChange}
+                category={transaction?.category || 'Electronics'}
+                placeholder="Enter transaction amount"
+                onPlatformFeeCalculated={handlePlatformFeeCalculated}
+                onEscrowCalculated={handleEscrowCalculated}
+              />
             </div>
             
             {[

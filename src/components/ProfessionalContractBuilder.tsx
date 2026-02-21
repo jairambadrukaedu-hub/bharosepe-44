@@ -123,7 +123,7 @@ const ProfessionalContractBuilder: React.FC<ProfessionalContractBuilderProps> = 
 
   const generateContractDocument = () => {
     const platformFee = Math.floor(contractData.totalPrice * 0.01);
-    const escrowAmount = contractData.totalPrice - platformFee;
+    const escrowAmount = contractData.totalPrice + platformFee;
 
     return `
 ═══════════════════════════════════════════════════════════════════════════════

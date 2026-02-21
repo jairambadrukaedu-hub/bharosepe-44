@@ -1022,6 +1022,17 @@ app.get('*', (req, res) => {
   }
 });
 
+// ════════════════════════════════════════════════════════════════════════════════
+// CONTRACT GENERATION API ROUTES
+// ════════════════════════════════════════════════════════════════════════════════
+try {
+  const contractRoutes = require('./contractRoutes');
+  app.use('/api/contracts', contractRoutes);
+  console.log('✅ Contract generation routes loaded');
+} catch (error) {
+  console.warn('⚠️  Contract routes not available:', error.message);
+}
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
