@@ -48,12 +48,9 @@ const AppContent = () => {
     <BrowserRouter>
       <ScrollToTop />
       <Routes>
-        {/* Previous Home Page (restored) */}
-        <Route path="/" element={<Index />} />
-
         {/* Landing Pages Routes */}
         <Route element={<Layout />}>
-          <Route path="/landing" element={<Home />} />
+          <Route path="/" element={<Home />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/buyers" element={<Buyers />} />
           <Route path="/sellers" element={<Sellers />} />
