@@ -76,6 +76,26 @@ const AppContent = () => {
         <Route path="/app/help" element={<Help />} />
         <Route path="/app/index" element={<Index />} />
 
+        {/* Application Routes (without /app prefix — used by internal navigation) */}
+        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/transaction-setup" element={<TransactionSetup />} />
+        <Route path="/setup-transaction" element={<TransactionSetup />} />
+        <Route path="/transactions" element={<Transactions />} />
+        <Route path="/transaction/:id" element={<TransactionStatus />} />
+        <Route path="/transaction-status/:id" element={<TransactionStatus />} />
+        <Route path="/disputes" element={<Disputes />} />
+        <Route path="/dispute/:id" element={<DisputeResolution />} />
+        <Route path="/contracts" element={<Contracts />} />
+        <Route path="/contract/:id" element={<ContractDetail />} />
+        <Route path="/agreement-sent" element={<AgreementSent />} />
+        <Route path="/agreement-received" element={<AgreementReceived />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/help" element={<Help />} />
+        <Route path="/payment" element={<TransactionSetup />} />
+
         {/* Fallback */}
         <Route path="*" element={<NotFound />} />
       </Routes>
