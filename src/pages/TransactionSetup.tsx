@@ -169,32 +169,20 @@ const TransactionSetup = () => {
     },
     { 
       id: 2, 
-      title: 'Select Category', 
-      component: 'category' 
-    },
-    { 
-      id: 3, 
-      title: 'Select Industry & Fill Details', 
+      title: 'Select Category & Fill Details', 
       component: 'form' 
     }
   ];
 
   const handleNext = async () => {
     if (currentStep === 1) {
-      // Move from contact search to category selection
+      // Move from contact search directly to form/category selection
       if (!transactionData.contact) {
         toast.error('Please select a contact');
         return;
       }
       setCurrentStep(2);
     } else if (currentStep === 2) {
-      // Move from category selection to form (industry selection + form filling)
-      if (!selectedCategory) {
-        toast.error('Please select a category');
-        return;
-      }
-      setCurrentStep(3);
-    } else if (currentStep === 3) {
       // Move to contract generation after form filled
       if (!transactionData.formSubmissionData.industryId) {
         toast.error('Please select an industry and fill the form');
@@ -287,80 +275,63 @@ const TransactionSetup = () => {
         );
       case 2:
         return (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground mb-4">
-              What type are you trading?
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div
-                onClick={() => {
-                  setSelectedCategory('goods');
-                }}
-                className={`p-6 rounded-lg border-2 cursor-pointer transition-all text-center ${
-                  selectedCategory === 'goods'
-                    ? 'border-bharose-primary bg-bharose-primary/5'
-                    : 'border-border hover:border-bharose-primary/50'
-                }`}
-              >
-                <div className="text-4xl mb-2">📦</div>
-                <h4 className="font-medium">Goods</h4>
-              </div>
-              <div
-                onClick={() => {
-                  setSelectedCategory('services');
-                }}
-                className={`p-6 rounded-lg border-2 cursor-pointer transition-all text-center ${
-                  selectedCategory === 'services'
-                    ? 'border-bharose-primary bg-bharose-primary/5'
-                    : 'border-border hover:border-bharose-primary/50'
-                }`}
-              >
-                <div className="text-4xl mb-2">🔧</div>
-                <h4 className="font-medium">Services</h4>
-              </div>
-            </div>
-          </div>
-        );
-      case 3:
-        return (
           <div className="space-y-6">
-            <div className="bharose-card">
-              <h3 className="font-medium mb-2">Contact</h3>
-              <p className="text-sm text-muted-foreground">
-                {transactionData.contact?.name} • {transactionData.contact?.phone}
-              </p>
-              <h3 className="font-medium mt-4 mb-2">Category</h3>
-              <p className="text-sm text-muted-foreground capitalize">
-                {selectedCategory}
-              </p>
-            </div>
             <FormFlow
               formId={formId}
-              categoryFilter={selectedCategory}
+              categoryFilter={null}
               onSubmit={async (industryId: string, formData: Record<string, any>) => {
                 console.log('✅ Form submitted:', { industryId, formData, formId });
-                
-                // Save form data to database
-                if (user) {
+                if (!user) return;
+
+                setLoading(true);
+                try {
+                  // Save form data to database
                   const saved = await saveFormSubmission({
                     user_id: user.id,
-                    form_id: formId, // Use the consistent formId
+                    form_id: formId,
                     industry_category: industryId,
                     annexure_code: getAnnexureCode(industryId),
                     form_data: formData,
                     status: 'completed'
                   });
 
-                  if (saved) {
-                    updateTransactionData('formSubmissionData', {
-                      industryId,
-                      formData
-                    });
-                    toast.success('Form details saved! Creating transaction...');
-                    handleNext();
-                  } else {
+                  if (!saved) {
                     toast.error('Failed to save form details');
+                    return;
                   }
+
+                  // Create the transaction directly using the industryId from the callback
+                  const isSeller = userMode === 'Seller';
+                  const { data, error } = await supabase
+                    .from('transactions')
+                    .insert([{
+                      title: 'Transaction (Details in Contract)',
+                      amount: 1,
+                      description: '',
+                      seller_id: isSeller ? user.id : transactionData.contact!.id,
+                      seller_phone: isSeller ? (user.user_metadata?.phone || user.phone) : transactionData.contact!.phone,
+                      delivery_date: new Date().toISOString(),
+                      buyer_id: isSeller ? transactionData.contact!.id : user.id,
+                      status: 'created'
+                    }])
+                    .select('id')
+                    .single();
+
+                  if (error) throw error;
+
+                  if (data?.id) {
+                    setCreatedTransactionId(data.id);
+                    sessionStorage.setItem('currentTransactionId', data.id);
+                    toast.success('Transaction created!');
+                    navigate(`/contract/${data.id}`, {
+                      state: { transactionData: { ...transactionData, formSubmissionData: { industryId, formData } } }
+                    });
+                  }
+                } catch (err: any) {
+                  console.error('❌ Transaction creation failed:', err);
+                  toast.error(err?.message || 'Failed to create transaction');
+                } finally {
+                  setLoading(false);
                 }
               }}
               onSaveDraft={async (industryId: string, formData: Record<string, any>) => {
@@ -378,7 +349,7 @@ const TransactionSetup = () => {
                 }
               }}
               onClose={() => {
-                setCurrentStep(2);
+                setCurrentStep(1);
               }}
             />
           </div>
@@ -393,8 +364,6 @@ const TransactionSetup = () => {
       case 1:
         return transactionData.contact;
       case 2:
-        return selectedCategory;
-      case 3:
         return transactionData.formSubmissionData.industryId;
       default:
         return false;
@@ -459,10 +428,10 @@ const TransactionSetup = () => {
               {loading ? (
                 <span className="flex items-center justify-center">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  {currentStep === 3 ? 'Creating Transaction...' : 'Loading...'}
+                  {'Loading...'}
                 </span>
               ) : (
-                currentStep === 3 ? 'Create Transaction' : 'Next'
+                'Next'
               )}
             </button>
           ) : (
