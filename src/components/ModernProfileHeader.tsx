@@ -78,14 +78,11 @@ const ModernProfileHeader: React.FC<ModernProfileHeaderProps> = ({
 
       {/* Right side - Notifications and Profile */}
       <div className="flex items-center gap-3">
-        {/* Role Toggle */}
-        <div className="hidden sm:block">
-          <UserRoleToggle 
-            currentMode={userMode}
-            onChange={setUserMode}
-            className="scale-90"
-          />
-        </div>
+        {/* Role Toggle — always visible */}
+        <UserRoleToggle 
+          currentMode={userMode}
+          onChange={setUserMode}
+        />
 
         {/* Notifications */}
         <Button
@@ -125,13 +122,7 @@ const ModernProfileHeader: React.FC<ModernProfileHeaderProps> = ({
               <p className="text-xs text-muted-foreground">
                 {userEmail || user?.email}
               </p>
-              <div className="mt-2 sm:hidden">
-                <UserRoleToggle 
-                  currentMode={userMode}
-                  onChange={setUserMode}
-                  className="scale-75 origin-left"
-                />
-              </div>
+
             </div>
             
             <DropdownMenuSeparator />

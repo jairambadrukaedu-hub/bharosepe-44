@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 interface HeaderWithRoleToggleProps {
   title?: string;
   showBack?: boolean;
+  onBack?: () => void;
   showNotifications?: boolean;
   notificationCount?: number;
   className?: string;
@@ -20,6 +21,7 @@ interface HeaderWithRoleToggleProps {
 const HeaderWithRoleToggle: React.FC<HeaderWithRoleToggleProps> = ({
   title,
   showBack = false,
+  onBack,
   showNotifications = false,
   notificationCount = 0,
   className = '',
@@ -28,6 +30,11 @@ const HeaderWithRoleToggle: React.FC<HeaderWithRoleToggleProps> = ({
   const navigate = useNavigate();
   const { userMode, setUserMode } = useUserModeContext();
 
+  const handleBack = () => {
+    if (onBack) onBack();
+    else navigate(-1);
+  };
+
   return (
     <div className={`flex items-center justify-between py-4 ${className}`}>
       <div className="flex items-center">
@@ -35,7 +42,7 @@ const HeaderWithRoleToggle: React.FC<HeaderWithRoleToggleProps> = ({
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
             className="mr-2"
             aria-label="Go back"
           >

@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { ShoppingBag, Store } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 
 interface UserRoleToggleProps {
@@ -10,48 +9,51 @@ interface UserRoleToggleProps {
   className?: string;
 }
 
-const UserRoleToggle: React.FC<UserRoleToggleProps> = ({ 
-  currentMode, 
+/**
+ * Compact pill-style Buyer ↔ Seller toggle.
+ * Works on mobile headers — no hidden/sm classes needed.
+ */
+const UserRoleToggle: React.FC<UserRoleToggleProps> = ({
+  currentMode,
   onChange,
-  className = ''
+  className = '',
 }) => {
+  const isBuyer = currentMode === 'Buyer';
+
   return (
-    <div className={`flex items-center space-x-2 ${className}`}>
-      <motion.button
+    <div
+      className={`relative flex items-center rounded-full border border-border bg-muted p-0.5 gap-0.5 ${className}`}
+      style={{ minWidth: 130 }}
+    >
+      {/* Sliding highlight */}
+      <motion.div
+        className="absolute top-0.5 bottom-0.5 rounded-full bg-bharose-primary"
+        style={{ width: 'calc(50% - 2px)' }}
+        animate={{ left: isBuyer ? 2 : 'calc(50% + 2px)' }}
+        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+      />
+
+      {/* Buyer */}
+      <button
         onClick={() => onChange('Buyer')}
-        className={`relative px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-          currentMode === 'Buyer' 
-            ? 'bg-bharose-primary text-primary-foreground' 
-            : 'bg-muted text-muted-foreground'
+        className={`relative z-10 flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-full text-xs font-semibold transition-colors ${
+          isBuyer ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
         }`}
-        whileTap={{ scale: 0.95 }}
       >
-        <ShoppingBag size={16} />
+        <ShoppingBag size={13} />
         <span>Buyer</span>
-        {currentMode === 'Buyer' && (
-          <Badge variant="secondary" className="absolute -top-2 -right-2 text-xs">
-            Active
-          </Badge>
-        )}
-      </motion.button>
-      
-      <motion.button
+      </button>
+
+      {/* Seller */}
+      <button
         onClick={() => onChange('Seller')}
-        className={`relative px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-          currentMode === 'Seller' 
-            ? 'bg-bharose-primary text-primary-foreground' 
-            : 'bg-muted text-muted-foreground'
+        className={`relative z-10 flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-full text-xs font-semibold transition-colors ${
+          !isBuyer ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
         }`}
-        whileTap={{ scale: 0.95 }}
       >
-        <Store size={16} />
+        <Store size={13} />
         <span>Seller</span>
-        {currentMode === 'Seller' && (
-          <Badge variant="secondary" className="absolute -top-2 -right-2 text-xs">
-            Active
-          </Badge>
-        )}
-      </motion.button>
+      </button>
     </div>
   );
 };

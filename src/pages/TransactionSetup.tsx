@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Header from '@/components/Header';
+import HeaderWithRoleToggle from '@/components/HeaderWithRoleToggle';
 import ContactSearch from '@/components/ContactSearch';
 import ContractGenerationUI from '@/components/ContractGenerationUI';
 import { FormFlow } from '@/components/forms/FormAppNewFlow';
@@ -269,7 +270,27 @@ const TransactionSetup = () => {
     switch (currentStep) {
       case 1:
         return (
-          <div className="space-y-6">
+          <div className="space-y-4">
+            {/* Role context banner */}
+            <div className={`rounded-xl p-4 border-2 ${
+              userMode === 'Seller'
+                ? 'bg-purple-50 border-purple-200 dark:bg-purple-950/30 dark:border-purple-800'
+                : 'bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800'
+            }`}>
+              <p className={`text-sm font-semibold ${userMode === 'Seller' ? 'text-purple-800 dark:text-purple-300' : 'text-blue-800 dark:text-blue-300'}`}>
+                {userMode === 'Seller'
+                  ? '🏪 You are the Seller'
+                  : '🛒 You are the Buyer'}
+              </p>
+              <p className={`text-xs mt-1 ${userMode === 'Seller' ? 'text-purple-700 dark:text-purple-400' : 'text-blue-700 dark:text-blue-400'}`}>
+                {userMode === 'Seller'
+                  ? 'You will create a contract and send it to the Buyer. Once accepted, the Buyer makes payment into escrow. You deliver, they confirm, and funds are released to you.'
+                  : 'You will create a contract and send it to the Seller. Once they accept, you make payment into escrow. Seller delivers, you confirm receipt, and funds are released to the Seller.'}
+              </p>
+              <p className="text-xs mt-1.5 text-muted-foreground">
+                Search the {userMode === 'Seller' ? 'Buyer' : 'Seller'} below to get started. Use the <strong>Buyer / Seller</strong> toggle in the header to switch your role.
+              </p>
+            </div>
             <ContactSearch
               selectedContact={transactionData.contact}
               onContactSelect={(contact) => updateTransactionData('contact', contact)}
@@ -580,10 +601,11 @@ const TransactionSetup = () => {
 
   return (
     <div className="bharose-container pb-8">
-      <Header 
-        title="Create Transaction & Contract" 
-        showBack 
-        onBack={handleBack} 
+      <HeaderWithRoleToggle
+        title="New Transaction"
+        showBack
+        onBack={handleBack}
+        showUserToggle={true}
       />
       
       {/* Progress Steps */}

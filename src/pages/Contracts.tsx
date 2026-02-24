@@ -32,7 +32,7 @@ const Contracts = () => {
           title="Contracts"
           showBack={true}
           showNotifications={false}
-          showUserToggle={false}
+          showUserToggle={true}
         />
         
         <div className="text-center py-8">
@@ -62,7 +62,7 @@ const Contracts = () => {
         title="Contracts"
         showBack={true}
         showNotifications={false}
-        showUserToggle={false}
+        showUserToggle={true}
       />
 
       <div className="space-y-4">
