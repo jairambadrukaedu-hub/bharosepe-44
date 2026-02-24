@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -42,6 +43,10 @@ const AppContent = () => {
 
   useEffect(() => {
     initialize();
+    // Silently repair the broken contract_audit_trigger on startup
+    supabase.functions.invoke('fix-contract-trigger').catch(() => {
+      // ignore — edge function may not be deployed yet
+    });
   }, [initialize]);
 
   return (
@@ -68,7 +73,7 @@ const AppContent = () => {
         <Route path="/app/disputes" element={<Disputes />} />
         <Route path="/app/dispute/:id" element={<DisputeResolution />} />
         <Route path="/app/contracts" element={<Contracts />} />
-        <Route path="/app/contract/:id" element={<ContractDetail />} />
+        <Route path="/app/contract/:contractId" element={<ContractDetail />} />
         <Route path="/app/agreement-sent" element={<AgreementSent />} />
         <Route path="/app/agreement-received" element={<AgreementReceived />} />
         <Route path="/app/onboarding" element={<OnboardingPage />} />
@@ -88,7 +93,7 @@ const AppContent = () => {
         <Route path="/disputes" element={<Disputes />} />
         <Route path="/dispute/:id" element={<DisputeResolution />} />
         <Route path="/contracts" element={<Contracts />} />
-        <Route path="/contract/:id" element={<ContractDetail />} />
+        <Route path="/contract/:contractId" element={<ContractDetail />} />
         <Route path="/agreement-sent" element={<AgreementSent />} />
         <Route path="/agreement-received" element={<AgreementReceived />} />
         <Route path="/onboarding" element={<OnboardingPage />} />

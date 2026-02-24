@@ -229,13 +229,47 @@ export const useContracts = () => {
 
       if (error) {
         console.error('❌ Contract creation failed:', error);
-        console.error('💡 Error details:', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint
-        });
-        
+
+        // Broken trigger: "record new has no field contract_id"
+        // Auto-repair by calling the fix-contract-trigger edge function, then retry once.
+        if (error.message?.includes('contract_id') || error.message?.includes('record "new"')) {
+          console.warn('⚠️ Detected broken trigger — calling fix-contract-trigger edge function...');
+          toast.loading('Fixing database trigger, please wait…', { id: 'trigger-fix' });
+          try {
+            await supabase.functions.invoke('fix-contract-trigger');
+            toast.success('Trigger fixed! Retrying…', { id: 'trigger-fix' });
+          } catch (fixErr) {
+            console.warn('fix-contract-trigger call failed (may still have worked):', fixErr);
+          }
+          // Retry the insert once
+          const { data: retryContract, error: retryError } = await supabase
+            .from('contracts')
+            .insert([contractPayload])
+            .select('*')
+            .single();
+
+          if (retryError) {
+            toast.error(`Still failing after trigger fix: ${retryError.message}`, { id: 'trigger-fix' });
+            throw new Error(retryError.message);
+          }
+
+          console.log('✅ Contract created on retry:', retryContract);
+
+          if (contractData.recipient_id && retryContract) {
+            supabase.functions.invoke('send-contract-notification', {
+              body: {
+                contract_id: retryContract.id,
+                transaction_id: contractData.transaction_id,
+                recipient_id: contractData.recipient_id
+              }
+            }).catch(() => {});
+          }
+
+          await fetchContracts();
+          toast.success('Contract created successfully!');
+          return retryContract.id;
+        }
+
         let errorMessage = 'Failed to create contract';
         if (error.code === '23503') {
           errorMessage = 'Invalid references in contract';

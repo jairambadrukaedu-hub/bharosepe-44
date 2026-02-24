@@ -40,6 +40,21 @@ import {
   getFormSubmissionData
 } from '../../services/formDatabaseIntegration';
 import { useAuth } from '@/hooks/use-auth';
+import { ContractGenerationEngine, ContractFormData } from '@/services/contractGenerationEngine';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import SendIcon from '@mui/icons-material/Send';
+import SaveIcon from '@mui/icons-material/Save';
+
+// Annexure codes for industries
+const INDUSTRY_ANNEXURE_MAP: Record<string, string> = {
+  electronics: 'A', mobile: 'B', furniture: 'C', vehicles: 'D',
+  'fashion-apparel': 'E', jewellery: 'F', building_material: 'G',
+  collectibles: 'H', industrial: 'I', books: 'J', art: 'K',
+  software_development: 'A', ui_ux_design: 'B', content_writing: 'C',
+  photography_videography: 'D', tutoring_coaching: 'E',
+  home_repair_maintenance: 'F', cleaning_housekeeping: 'G',
+  digital_marketing: 'H', consulting_ca_legal: 'I',
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STYLED COMPONENTS
@@ -527,7 +542,21 @@ interface FormFlowProps {
   onSaveDraft?: (industryId: string, formData: Record<string, any>) => Promise<void>;
   onClose?: () => void;
   categoryFilter?: 'goods' | 'services' | null;
-  formId?: string; // Accept formId from parent (TransactionSetup)
+  formId?: string;
+  /** Contact the current user selected */
+  contactInfo?: { id: string; name: string; phone: string } | null;
+  /** Supabase auth user */
+  currentUser?: any;
+  /** 'Seller' | 'Buyer' */
+  userMode?: string;
+  /** Called on Quick Contract confirm — parent creates the DB transaction */
+  onQuickContractSubmit?: (data: any) => Promise<void>;
+  /** Called on Quick Contract save draft — parent creates draft (no notification) */
+  onSaveDraftQuickContract?: (data: any) => Promise<void>;
+  /** Called when user clicks Send Contract in the review step */
+  onSendContract?: (industryId: string, formData: Record<string, any>, contractHTML: string) => Promise<void>;
+  /** Called when user clicks Save Draft in the review step */
+  onSaveDraftContract?: (industryId: string, formData: Record<string, any>, contractHTML: string) => Promise<void>;
 }
 
 export const FormFlow: React.FC<FormFlowProps> = ({
@@ -536,13 +565,23 @@ export const FormFlow: React.FC<FormFlowProps> = ({
   onClose = () => {},
   categoryFilter = null,
   formId: parentFormId,
+  contactInfo,
+  currentUser,
+  userMode,
+  onQuickContractSubmit,
+  onSaveDraftQuickContract,
+  onSendContract,
+  onSaveDraftContract,
 }) => {
   // If categoryFilter is provided, start directly with industry selection
   const initialStep = categoryFilter ? 'industry' : 'category';
-  const [step, setStep] = useState<'category' | 'industry' | 'form' | 'simple-contract'>(initialStep);
+  const [step, setStep] = useState<'category' | 'industry' | 'form' | 'simple-contract' | 'contract-review'>(initialStep);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(categoryFilter);
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [generatedHTML, setGeneratedHTML] = useState('');
+  const [pendingSubmitInfo, setPendingSubmitInfo] = useState<{ industryId: string; formData: Record<string, any> } | null>(null);
   // Use formId from parent if provided, otherwise generate one
   const [formId] = useState<string>(() => parentFormId || generateFormId());
 
@@ -583,16 +622,66 @@ export const FormFlow: React.FC<FormFlowProps> = ({
     setIsLoading(true);
     try {
       if (selectedIndustry && formId) {
-        // Save to database and trigger contract generation
-        const result = await submitFormAndGenerateContract(
-          formData,
-          selectedIndustry,
-          { formId }
-        );
+        // Save to database
+        const result = await submitFormAndGenerateContract(formData, selectedIndustry, { formId });
 
         if (result.success) {
-          // Call parent onSubmit callback if provided
-          await onSubmit(selectedIndustry, formData);
+          // Generate contract HTML for review
+          const isSeller = userMode !== 'Buyer';
+          const annexureCode = INDUSTRY_ANNEXURE_MAP[selectedIndustry] || 'A';
+          const contractData: ContractFormData = {
+            ...formData,
+            transaction_id: crypto.randomUUID(), // temp ID for HTML generation only
+            product_category: selectedIndustry as any,
+            annexure_code: annexureCode,
+            seller_name: isSeller
+              ? (currentUser?.user_metadata?.full_name || currentUser?.email || 'Seller')
+              : (contactInfo?.name || 'Seller'),
+            seller_id: isSeller ? (currentUser?.id || '') : (contactInfo?.id || ''),
+            seller_phone: isSeller
+              ? (currentUser?.user_metadata?.phone || currentUser?.phone || '')
+              : (contactInfo?.phone || ''),
+            seller_address: '',
+            seller_kyc_status: 'unverified',
+            buyer_name: isSeller
+              ? (contactInfo?.name || 'Buyer')
+              : (currentUser?.user_metadata?.full_name || currentUser?.email || 'Buyer'),
+            buyer_id: isSeller ? (contactInfo?.id || '') : (currentUser?.id || ''),
+            buyer_phone: isSeller
+              ? (contactInfo?.phone || '')
+              : (currentUser?.user_metadata?.phone || currentUser?.phone || ''),
+            buyer_address: '',
+            buyer_kyc_status: 'unverified',
+            product_name: formData.product_name || formData.itemDescription || formData.item_name || selectedIndustry,
+            brand: formData.brand || formData.make || '',
+            model_number: formData.model_number || formData.model_name || '',
+            serial_number: formData.serial_number || '',
+            condition_category: formData.condition || '',
+            scratches_present: formData.scratches || formData.scratches_present || 'No',
+            dents_present: formData.dents || formData.dents_present || 'No',
+            power_on_working: (formData.power_on || formData.power_on_working || 'yes') as 'yes' | 'no',
+            charging_working: (formData.charging_working || 'yes') as 'yes' | 'no',
+            original_box_included: (formData.original_box || formData.original_box_included || 'no') as 'yes' | 'no' | 'damaged',
+            original_charger_included: (formData.original_charger || formData.original_charger_included || 'no') as 'yes' | 'no',
+            warranty_status: formData.warranty || formData.warranty_info || formData.warranty_status || '',
+            sale_price: Number(formData.totalPrice || formData.sale_price || formData.price || 0),
+            delivery_method: (formData.deliveryMode || formData.delivery_method || 'in-person') as 'courier' | 'pickup' | 'in-person',
+            delivery_address: formData.delivery_address || '',
+            delivery_days: Number(formData.delivery_days || 7),
+          };
+          try {
+            const generated = await ContractGenerationEngine.generateContract(contractData);
+            setGeneratedHTML(generated.contract_html || '');
+          } catch (genErr) {
+            console.warn('Contract HTML generation failed, using plain text fallback', genErr);
+            const entries = Object.entries(formData)
+              .filter(([, v]) => v !== null && v !== undefined && v !== '')
+              .map(([k, v]) => `<tr><td style="padding:4px 8px;font-weight:600;">${k}</td><td style="padding:4px 8px;">${v}</td></tr>`)
+              .join('');
+            setGeneratedHTML(`<h2 style="margin-bottom:12px">Contract Summary – ${selectedIndustry}</h2><table style="border-collapse:collapse;width:100%">${entries}</table>`);
+          }
+          setPendingSubmitInfo({ industryId: selectedIndustry, formData });
+          setStep('contract-review');
         }
       }
     } catch (error) {
@@ -614,6 +703,90 @@ export const FormFlow: React.FC<FormFlowProps> = ({
     }
   };
 
+  if (step === 'contract-review' && pendingSubmitInfo) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <BackButton
+          startIcon={<ArrowBackIcon />}
+          onClick={() => { setStep('form'); setGeneratedHTML(''); setPendingSubmitInfo(null); }}
+          variant="outlined"
+          size="small"
+        >
+          Back to Form
+        </BackButton>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <CheckCircleIcon sx={{ color: '#10b981' }} />
+          <Typography variant="h6" fontWeight="bold">Review Your Contract</Typography>
+        </Box>
+
+        {/* Contract HTML preview */}
+        <Box
+          sx={{
+            border: '2px solid #10b981',
+            borderRadius: 2,
+            p: 2,
+            backgroundColor: '#f9fafb',
+            maxHeight: 480,
+            overflowY: 'auto',
+            mb: 3,
+            fontSize: 13,
+          }}
+          dangerouslySetInnerHTML={{ __html: generatedHTML }}
+        />
+
+        {/* Action buttons */}
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <Button
+            variant="outlined"
+            startIcon={<SaveIcon />}
+            disabled={isSaving}
+            onClick={async () => {
+              if (!onSaveDraftContract) return;
+              setIsSaving(true);
+              try {
+                await onSaveDraftContract(
+                  pendingSubmitInfo.industryId,
+                  pendingSubmitInfo.formData,
+                  generatedHTML,
+                );
+              } finally {
+                setIsSaving(false);
+              }
+            }}
+            fullWidth
+          >
+            {isSaving ? 'Saving…' : 'Save Draft'}
+          </Button>
+
+          <Button
+            variant="contained"
+            color="success"
+            startIcon={<SendIcon />}
+            disabled={isLoading}
+            onClick={async () => {
+              if (!onSendContract) return;
+              setIsLoading(true);
+              try {
+                await onSendContract(
+                  pendingSubmitInfo.industryId,
+                  pendingSubmitInfo.formData,
+                  generatedHTML,
+                );
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            fullWidth
+            sx={{ fontWeight: 'bold' }}
+          >
+            {isLoading ? 'Sending…' : 'Send Contract to Other Party'}
+          </Button>
+        </Stack>
+      </Box>
+    );
+  }
+
   if (step === 'category') {
     return <CategorySelector onSelectCategory={handleSelectCategory} />;
   }
@@ -623,6 +796,11 @@ export const FormFlow: React.FC<FormFlowProps> = ({
       <SimpleContractForm
         category={selectedCategory as 'goods' | 'services'}
         onBack={handleBackFromSimpleContract}
+        contactInfo={contactInfo}
+        currentUser={currentUser}
+        userMode={userMode}
+        onQuickContractSubmit={onQuickContractSubmit}
+        onSaveDraftQuickContract={onSaveDraftQuickContract}
       />
     );
   }

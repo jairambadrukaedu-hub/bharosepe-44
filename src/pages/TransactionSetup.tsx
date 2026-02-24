@@ -9,8 +9,10 @@ import { FormFlow } from '@/components/forms/FormAppNewFlow';
 import { useAuth } from '@/hooks/use-auth';
 import { useUserModeContext } from '@/components/UserModeContext';
 import { useTransactions } from '@/hooks/use-transactions';
+import { useContracts } from '@/hooks/use-contracts';
 import { saveFormSubmission } from '@/services/formSubmissionService';
 import { getAllFormCategories } from '@/services/formConfigurations';
+import { generateSimpleContractHTML } from '@/services/simpleContractService';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -69,6 +71,7 @@ const TransactionSetup = () => {
   const { user } = useAuth();
   const { userMode } = useUserModeContext();
   const { createTransaction } = useTransactions(userMode);
+  const { createContract } = useContracts();
   const [currentStep, setCurrentStep] = useState(1);
   const [createdTransactionId, setCreatedTransactionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -279,6 +282,211 @@ const TransactionSetup = () => {
             <FormFlow
               formId={formId}
               categoryFilter={null}
+              contactInfo={transactionData.contact}
+              currentUser={user}
+              userMode={userMode}
+              onQuickContractSubmit={async (simpleContractData) => {
+                if (!user || !transactionData.contact) return;
+                setLoading(true);
+                try {
+                  const isSeller = userMode === 'Seller';
+
+                  // 1. Create the transaction
+                  const { data: txData, error: txError } = await supabase
+                    .from('transactions')
+                    .insert([{
+                      title: simpleContractData.title || 'Quick Contract Transaction',
+                      amount: simpleContractData.price || 1,
+                      description: simpleContractData.description || '',
+                      seller_id: isSeller ? user.id : transactionData.contact.id,
+                      seller_phone: isSeller
+                        ? (user.user_metadata?.phone || user.phone)
+                        : transactionData.contact.phone,
+                      delivery_date: simpleContractData.deliveryDate
+                        ? new Date(simpleContractData.deliveryDate).toISOString()
+                        : new Date().toISOString(),
+                      buyer_id: isSeller ? transactionData.contact.id : user.id,
+                      status: 'created',
+                    }])
+                    .select('id')
+                    .single();
+                  if (txError) throw txError;
+                  if (!txData?.id) throw new Error('Transaction creation failed');
+
+                  setCreatedTransactionId(txData.id);
+                  sessionStorage.setItem('currentTransactionId', txData.id);
+
+                  // 2. Generate HTML and save contract row with recipient — 
+                  //    createContract() automatically fires send-contract-notification
+                  const contractHTML = generateSimpleContractHTML(simpleContractData);
+                  const contractId = await createContract({
+                    transaction_id: txData.id,
+                    contract_content: contractHTML,
+                    recipient_id: transactionData.contact.id,
+                    amount: simpleContractData.price || 1,
+                    initiator_role: isSeller ? 'seller' : 'buyer',
+                  });
+
+                  if (!contractId) throw new Error('Contract creation failed');
+
+                  // 3. Navigate to the real contract page (contract ID, not tx ID)
+                  toast.success('Contract sent! Waiting for acceptance.');
+                  sessionStorage.removeItem('transactionSetupState');
+                  localStorage.removeItem('transactionSetupState');
+                  navigate(`/contract/${contractId}`);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Failed to create contract');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              onSaveDraftQuickContract={async (simpleContractData) => {
+                if (!user || !transactionData.contact) return;
+                setLoading(true);
+                try {
+                  const isSeller = userMode === 'Seller';
+
+                  // 1. Create transaction
+                  const { data: txData, error: txError } = await supabase
+                    .from('transactions')
+                    .insert([{
+                      title: simpleContractData.title || 'Quick Contract Draft',
+                      amount: simpleContractData.price || 1,
+                      description: simpleContractData.description || '',
+                      seller_id: isSeller ? user.id : transactionData.contact.id,
+                      seller_phone: isSeller
+                        ? (user.user_metadata?.phone || user.phone)
+                        : transactionData.contact.phone,
+                      delivery_date: simpleContractData.deliveryDate
+                        ? new Date(simpleContractData.deliveryDate).toISOString()
+                        : new Date().toISOString(),
+                      buyer_id: isSeller ? transactionData.contact.id : user.id,
+                      status: 'created',
+                    }])
+                    .select('id')
+                    .single();
+                  if (txError) throw txError;
+                  if (!txData?.id) throw new Error('Transaction creation failed');
+
+                  setCreatedTransactionId(txData.id);
+
+                  // 2. Save as draft — no recipient_id → no notification sent
+                  const contractHTML = generateSimpleContractHTML(simpleContractData);
+                  const contractId = await createContract({
+                    transaction_id: txData.id,
+                    contract_content: contractHTML,
+                    amount: simpleContractData.price || 1,
+                    initiator_role: isSeller ? 'seller' : 'buyer',
+                    // no recipient_id → draft
+                  });
+                  if (!contractId) throw new Error('Draft save failed');
+
+                  toast.success('Draft saved! You can send it to the other party later.');
+                } catch (err: any) {
+                  toast.error(err?.message || 'Failed to save draft');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              onSendContract={async (industryId: string, formData: Record<string, any>, contractHTML: string) => {
+                if (!user || !transactionData.contact) return;
+                setLoading(true);
+                try {
+                  const isSeller = userMode === 'Seller';
+                  const amount = Number(formData.totalPrice || formData.sale_price || formData.price || 1);
+
+                  // 1. Create transaction
+                  const { data: txData, error: txError } = await supabase
+                    .from('transactions')
+                    .insert([{
+                      title: formData.product_name || formData.itemDescription || formData.item_name || `${industryId} Transaction`,
+                      amount,
+                      description: formData.description || formData.itemDescription || '',
+                      seller_id: isSeller ? user.id : transactionData.contact.id,
+                      seller_phone: isSeller
+                        ? (user.user_metadata?.phone || user.phone)
+                        : transactionData.contact.phone,
+                      delivery_date: formData.deliveryDate
+                        ? new Date(formData.deliveryDate).toISOString()
+                        : new Date().toISOString(),
+                      buyer_id: isSeller ? transactionData.contact.id : user.id,
+                      status: 'created',
+                    }])
+                    .select('id')
+                    .single();
+                  if (txError) throw txError;
+                  if (!txData?.id) throw new Error('Transaction creation failed');
+
+                  setCreatedTransactionId(txData.id);
+                  sessionStorage.setItem('currentTransactionId', txData.id);
+
+                  // 2. Create contract with recipient → fires send-contract-notification
+                  const contractId = await createContract({
+                    transaction_id: txData.id,
+                    contract_content: contractHTML,
+                    recipient_id: transactionData.contact.id,
+                    amount,
+                    initiator_role: isSeller ? 'seller' : 'buyer',
+                  });
+                  if (!contractId) throw new Error('Contract creation failed');
+
+                  // 3. Navigate to contract viewer
+                  toast.success('Contract sent! Waiting for acceptance.');
+                  sessionStorage.removeItem('transactionSetupState');
+                  localStorage.removeItem('transactionSetupState');
+                  navigate(`/contract/${contractId}`);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Failed to send contract');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              onSaveDraftContract={async (industryId: string, formData: Record<string, any>, contractHTML: string) => {
+                if (!user || !transactionData.contact) return;
+                setLoading(true);
+                try {
+                  const isSeller = userMode === 'Seller';
+                  const amount = Number(formData.totalPrice || formData.sale_price || formData.price || 1);
+
+                  // 1. Create transaction
+                  const { data: txData, error: txError } = await supabase
+                    .from('transactions')
+                    .insert([{
+                      title: formData.product_name || formData.itemDescription || formData.item_name || `${industryId} Draft`,
+                      amount,
+                      description: formData.description || formData.itemDescription || '',
+                      seller_id: isSeller ? user.id : transactionData.contact.id,
+                      seller_phone: isSeller
+                        ? (user.user_metadata?.phone || user.phone)
+                        : transactionData.contact.phone,
+                      delivery_date: new Date().toISOString(),
+                      buyer_id: isSeller ? transactionData.contact.id : user.id,
+                      status: 'created',
+                    }])
+                    .select('id')
+                    .single();
+                  if (txError) throw txError;
+                  if (!txData?.id) throw new Error('Transaction creation failed');
+
+                  setCreatedTransactionId(txData.id);
+
+                  // 2. Create draft contract (no recipient_id → status stays 'draft')
+                  const contractId = await createContract({
+                    transaction_id: txData.id,
+                    contract_content: contractHTML,
+                    amount,
+                    initiator_role: isSeller ? 'seller' : 'buyer',
+                    // no recipient_id → draft, no notification sent
+                  });
+                  if (!contractId) throw new Error('Draft save failed');
+
+                  toast.success('Draft saved! You can send it to the other party later.');
+                } catch (err: any) {
+                  toast.error(err?.message || 'Failed to save draft');
+                } finally {
+                  setLoading(false);
+                }
+              }}
               onSubmit={async (industryId: string, formData: Record<string, any>) => {
                 console.log('✅ Form submitted:', { industryId, formData, formId });
                 if (!user) return;

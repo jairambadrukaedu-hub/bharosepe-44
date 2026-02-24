@@ -2,9 +2,10 @@
  * ═══════════════════════════════════════════════════════════════════════════════
  * SIMPLE CONTRACT FORM COMPONENT
  * ═══════════════════════════════════════════════════════════════════════════════
- * 
- * Quick contract generation with minimal fields
- * No form submission required
+ *
+ * Quick contract generation with minimal fields.
+ * Auto-fills buyer/seller from the selected contact + logged-in user.
+ * On confirm, calls onQuickContractSubmit which creates the DB transaction.
  */
 
 import React, { useState } from 'react';
@@ -12,66 +13,116 @@ import {
   Box,
   Button,
   Card,
-  CardContent,
   Container,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
   Typography,
-  Alert,
   CircularProgress,
   Snackbar,
+  Divider,
+  Collapse,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import PrintIcon from '@mui/icons-material/Print';
-import { 
-  SimpleContractData, 
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import SendIcon from '@mui/icons-material/Send';
+import SaveIcon from '@mui/icons-material/Save';
+import {
+  SimpleContractData,
   SimpleContractParty,
   generateSimpleContractHTML,
   generateSimpleContractText,
-  saveSimpleContract
+  saveSimpleContract,
 } from '../../services/simpleContractService';
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// STYLED COMPONENTS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Styled ───────────────────────────────────────────────────────────────────
 
 const HeroSection = styled(Box)(({ theme }) => ({
   background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
   color: 'white',
   padding: theme.spacing(4, 3),
-  marginBottom: theme.spacing(4),
+  marginBottom: theme.spacing(3),
   borderRadius: theme.shape.borderRadius,
   textAlign: 'center',
   boxShadow: theme.shadows[4],
 }));
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
+const PartyCard = styled(Box)(({ theme }) => ({
+  background: '#f0fdf4',
+  border: '1px solid #bbf7d0',
+  borderRadius: theme.shape.borderRadius,
+  padding: theme.spacing(2),
+  marginBottom: theme.spacing(2),
+}));
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface SimpleContractFormProps {
   category: 'goods' | 'services';
   onBack: () => void;
+  /** The contact the current user searched for */
+  contactInfo?: { id: string; name: string; phone: string } | null;
+  /** Supabase auth user object */
+  currentUser?: any;
+  /** 'Seller' | 'Buyer' from UserModeContext */
+  userMode?: string;
+  /** Called with final form data — parent creates tx + sends contract */
+  onQuickContractSubmit?: (data: SimpleContractData) => Promise<void>;
+  /** Called when user saves draft — parent creates tx + draft contract (no notification) */
+  onSaveDraftQuickContract?: (data: SimpleContractData) => Promise<void>;
 }
 
-export const SimpleContractForm: React.FC<SimpleContractFormProps> = ({ category, onBack }) => {
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export const SimpleContractForm: React.FC<SimpleContractFormProps> = ({
+  category,
+  onBack,
+  contactInfo,
+  currentUser,
+  userMode,
+  onQuickContractSubmit,
+  onSaveDraftQuickContract,
+}) => {
+  const isSeller = userMode !== 'Buyer';
+
+  // Derive party info from context
+  const currentUserParty: SimpleContractParty = {
+    name:
+      currentUser?.user_metadata?.full_name ||
+      currentUser?.user_metadata?.name ||
+      currentUser?.email ||
+      '',
+    phone:
+      currentUser?.user_metadata?.phone ||
+      currentUser?.phone ||
+      '',
+    email: currentUser?.email || '',
+    address: '',
+  };
+
+  const contactParty: SimpleContractParty = {
+    name: contactInfo?.name || '',
+    phone: contactInfo?.phone || '',
+    email: '',
+    address: '',
+  };
+
+  const initialSeller = isSeller ? currentUserParty : contactParty;
+  const initialBuyer = isSeller ? contactParty : currentUserParty;
+
   const [step, setStep] = useState<'form' | 'preview'>('form');
   const [loading, setLoading] = useState(false);
-  const [showSnackbar, setShowSnackbar] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [showOptional, setShowOptional] = useState(false);
+  const [snackbar, setSnackbar] = useState('');
 
-  // Form state
   const [formData, setFormData] = useState<SimpleContractData>({
     contractType: category,
-    industryId: '',
+    industryId: 'quick',
     title: '',
     description: '',
-    seller: { name: '', email: '', phone: '', address: '' },
-    buyer: { name: '', email: '', phone: '', address: '' },
+    seller: initialSeller,
+    buyer: initialBuyer,
     price: 0,
     currency: 'INR',
     paymentTerms: '',
@@ -83,92 +134,81 @@ export const SimpleContractForm: React.FC<SimpleContractFormProps> = ({ category
 
   const [contractHTML, setContractHTML] = useState('');
 
-  const handleInputChange = (field: string, value: string | number) => {
+  const set = (field: keyof SimpleContractData, value: any) =>
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
 
-  const handlePartyChange = (party: 'seller' | 'buyer', field: keyof SimpleContractParty, value: string) => {
+  const setParty = (
+    party: 'seller' | 'buyer',
+    field: keyof SimpleContractParty,
+    value: string,
+  ) =>
     setFormData(prev => ({
       ...prev,
-      [party]: { ...prev[party], [field]: value }
+      [party]: { ...prev[party], [field]: value },
     }));
-  };
 
-  const validateForm = (): boolean => {
-    if (!formData.title.trim()) {
-      setSnackbarMessage('Product/Service name is required');
-      setShowSnackbar(true);
-      return false;
-    }
-    if (!formData.description.trim()) {
-      setSnackbarMessage('Description is required');
-      setShowSnackbar(true);
-      return false;
-    }
-    if (!formData.price || formData.price <= 0) {
-      setSnackbarMessage('Valid price is required');
-      setShowSnackbar(true);
-      return false;
-    }
-    if (!formData.paymentTerms.trim()) {
-      setSnackbarMessage('Payment terms are required');
-      setShowSnackbar(true);
-      return false;
-    }
+  const validate = () => {
+    if (!formData.title.trim()) { setSnackbar('Product/Service name is required'); return false; }
+    if (!formData.description.trim()) { setSnackbar('Description is required'); return false; }
+    if (!formData.price || formData.price <= 0) { setSnackbar('Valid price is required'); return false; }
+    if (!formData.paymentTerms.trim()) { setSnackbar('Payment terms are required'); return false; }
     return true;
   };
 
-  const handleGeneratePreview = () => {
-    if (!validateForm()) return;
-    
-    const html = generateSimpleContractHTML(formData);
-    setContractHTML(html);
+  const handleGenerate = () => {
+    if (!validate()) return;
+    setContractHTML(generateSimpleContractHTML(formData));
     setStep('preview');
   };
 
-  const handleDownloadContract = () => {
-    const element = document.createElement('a');
-    element.setAttribute('href', 'data:text/html;charset=utf-8,' + encodeURIComponent(contractHTML));
-    element.setAttribute('download', `${category}-contract-${Date.now()}.html`);
-    element.style.display = 'none';
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-    
-    setSnackbarMessage('Contract downloaded successfully!');
-    setShowSnackbar(true);
-  };
-
-  const handlePrintContract = () => {
-    const printWindow = window.open('', '', 'height=600,width=800');
-    if (printWindow) {
-      printWindow.document.write(contractHTML);
-      printWindow.document.close();
-      printWindow.print();
-    }
-  };
-
-  const handleSaveContract = async () => {
+  const handleSendContract = async () => {
     setLoading(true);
     try {
-      const text = generateSimpleContractText(formData);
-      const result = await saveSimpleContract(formData, contractHTML, text);
-      
-      if (result) {
-        setSnackbarMessage('Contract saved successfully!');
-        setShowSnackbar(true);
+      if (onQuickContractSubmit) {
+        await onQuickContractSubmit(formData);
       } else {
-        setSnackbarMessage('Failed to save contract');
-        setShowSnackbar(true);
+        const text = generateSimpleContractText(formData);
+        await saveSimpleContract(formData, contractHTML, text);
+        setSnackbar('Contract sent!');
       }
-    } catch (error) {
-      setSnackbarMessage('Error saving contract');
-      setShowSnackbar(true);
+    } catch (err: any) {
+      setSnackbar(err?.message || 'Failed to send contract');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSaveDraft = async () => {
+    setSaving(true);
+    try {
+      if (onSaveDraftQuickContract) {
+        await onSaveDraftQuickContract(formData);
+      } else {
+        const text = generateSimpleContractText(formData);
+        await saveSimpleContract(formData, contractHTML, text);
+        setSnackbar('Draft saved!');
+      }
+    } catch (err: any) {
+      setSnackbar(err?.message || 'Failed to save draft');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDownload = () => {
+    const a = document.createElement('a');
+    a.href = 'data:text/html;charset=utf-8,' + encodeURIComponent(contractHTML);
+    a.download = `${category}-contract-${Date.now()}.html`;
+    a.click();
+    setSnackbar('Contract downloaded!');
+  };
+
+  const handlePrint = () => {
+    const w = window.open('', '', 'height=600,width=800');
+    if (w) { w.document.write(contractHTML); w.document.close(); w.print(); }
+  };
+
+  // ── Preview screen ──────────────────────────────────────────────────────────
   if (step === 'preview') {
     return (
       <Container maxWidth="lg">
@@ -176,218 +216,274 @@ export const SimpleContractForm: React.FC<SimpleContractFormProps> = ({ category
           Back to Form
         </Button>
 
-          <Card sx={{ p: 3 }}>
+        <Card sx={{ p: 3 }}>
           <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
             📋 Contract Preview
           </Typography>
 
-          <Box sx={{
-            border: `2px solid #667eea`,
-            borderRadius: 2,
-            padding: 2,
-            backgroundColor: '#f9fafb',
-            maxHeight: '500px',
-            overflowY: 'auto',
-            marginTop: 2,
-          }}>
+          <Box
+            sx={{
+              border: '2px solid #10b981',
+              borderRadius: 2,
+              p: 2,
+              backgroundColor: '#f9fafb',
+              maxHeight: 500,
+              overflowY: 'auto',
+            }}
+          >
             <div dangerouslySetInnerHTML={{ __html: contractHTML }} />
           </Box>
 
-          <Box sx={{ display: 'flex', gap: 2, mt: 3, flexWrap: 'wrap' }}>
+          <Divider sx={{ my: 3 }} />
+
+          {/* Primary actions */}
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 2 }}>
+            <Button
+              variant="outlined"
+              size="large"
+              startIcon={saving ? <CircularProgress size={18} /> : <SaveIcon />}
+              onClick={handleSaveDraft}
+              disabled={saving || loading}
+              fullWidth
+              sx={{ fontWeight: 'bold', py: 1.5 }}
+            >
+              {saving ? 'Saving…' : 'Save Draft'}
+            </Button>
+
             <Button
               variant="contained"
+              color="success"
+              size="large"
+              startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <SendIcon />}
+              onClick={handleSendContract}
+              disabled={loading || saving}
+              fullWidth
+              sx={{ fontWeight: 'bold', py: 1.5 }}
+            >
+              {loading ? 'Sending…' : 'Send Contract to Other Party'}
+            </Button>
+          </Box>
+
+          {/* Tertiary actions */}
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <Button
+              variant="text"
               color="primary"
               startIcon={<FileDownloadIcon />}
-              onClick={handleDownloadContract}
+              onClick={handleDownload}
             >
               Download
             </Button>
             <Button
-              variant="outlined"
+              variant="text"
               color="primary"
               startIcon={<PrintIcon />}
-              onClick={handlePrintContract}
+              onClick={handlePrint}
             >
               Print
             </Button>
-            <Button
-              variant="contained"
-              color="success"
-              onClick={handleSaveContract}
-              disabled={loading}
-            >
-              {loading ? <CircularProgress size={20} /> : 'Save Contract'}
-            </Button>
           </Box>
         </Card>
+
+        <Snackbar
+          open={!!snackbar}
+          autoHideDuration={4000}
+          onClose={() => setSnackbar('')}
+          message={snackbar}
+        />
       </Container>
     );
   }
 
+  // ── Form screen ─────────────────────────────────────────────────────────────
   return (
     <Container maxWidth="sm">
       <Button startIcon={<span>←</span>} onClick={onBack} sx={{ mb: 2 }}>
-        Back to Category
+        Back
       </Button>
 
       <HeroSection>
-        <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+        <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
           ⚡ Quick {category === 'goods' ? 'Goods' : 'Services'} Contract
         </Typography>
-        <Typography variant="body1">
-          Create a simple contract in minutes without a lengthy form
+        <Typography variant="body2" sx={{ opacity: 0.9 }}>
+          Fill in a few details and get your contract in seconds
         </Typography>
       </HeroSection>
 
-      <Card sx={{ p: 3, mb: 4 }}>
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="body2" sx={{ color: '#666', mb: 3 }}>
-            Fill in the essential details below to generate your contract
-          </Typography>
+      {/* ── Parties (auto-filled, editable) ── */}
+      <PartyCard>
+        <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#059669', display: 'block', mb: 1 }}>
+          {isSeller ? '🧑‍💼 You (Seller)' : '🧑‍💼 You (Buyer)'}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <TextField
+            label="Name"
+            size="small"
+            fullWidth
+            value={isSeller ? formData.seller.name : formData.buyer.name}
+            onChange={e => setParty(isSeller ? 'seller' : 'buyer', 'name', e.target.value)}
+          />
+          <TextField
+            label="Phone"
+            size="small"
+            fullWidth
+            value={isSeller ? formData.seller.phone : formData.buyer.phone}
+            onChange={e => setParty(isSeller ? 'seller' : 'buyer', 'phone', e.target.value)}
+          />
         </Box>
+      </PartyCard>
 
-        {/* Product/Service Name */}
+      <PartyCard>
+        <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#059669', display: 'block', mb: 1 }}>
+          {isSeller ? '🛒 Buyer' : '🛒 Seller'}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <TextField
+            label="Name"
+            size="small"
+            fullWidth
+            value={isSeller ? formData.buyer.name : formData.seller.name}
+            onChange={e => setParty(isSeller ? 'buyer' : 'seller', 'name', e.target.value)}
+          />
+          <TextField
+            label="Phone"
+            size="small"
+            fullWidth
+            value={isSeller ? formData.buyer.phone : formData.seller.phone}
+            onChange={e => setParty(isSeller ? 'buyer' : 'seller', 'phone', e.target.value)}
+          />
+        </Box>
+      </PartyCard>
+
+      {/* ── Core fields ── */}
+      <Card sx={{ p: 3, mb: 2 }}>
         <TextField
           fullWidth
-          label={category === 'goods' ? 'Product Name' : 'Service Name'}
+          label={category === 'goods' ? 'Product Name *' : 'Service Name *'}
           value={formData.title}
-          onChange={(e) => handleInputChange('title', e.target.value)}
-          margin="normal"
+          onChange={e => set('title', e.target.value)}
+          margin="dense"
           size="small"
-          placeholder={category === 'goods' ? 'e.g., iPhone 14 Pro Max' : 'e.g., Web Design Service'}
+          placeholder={category === 'goods' ? 'e.g., iPhone 14 Pro Max' : 'e.g., Website Redesign'}
         />
 
-        {/* Description */}
         <TextField
           fullWidth
-          label="Description"
+          label="Description *"
           value={formData.description}
-          onChange={(e) => handleInputChange('description', e.target.value)}
-          margin="normal"
+          onChange={e => set('description', e.target.value)}
+          margin="dense"
+          size="small"
           multiline
           rows={3}
-          size="small"
-          placeholder={category === 'goods' ? 'Describe the product in detail' : 'Describe the service in detail'}
+          placeholder={category === 'goods' ? 'Describe the product in detail' : 'Describe what will be delivered'}
         />
 
-        {/* Condition/Scope */}
         <TextField
           fullWidth
-          label={category === 'goods' ? 'Condition' : 'Scope of Work'}
-          value={formData.conditions}
-          onChange={(e) => handleInputChange('conditions', e.target.value)}
-          margin="normal"
-          multiline
-          rows={2}
-          size="small"
-          placeholder={category === 'goods' ? 'e.g., New, Used, Refurbished' : 'e.g., What will be delivered'}
-        />
-
-        {/* Price */}
-        <TextField
-          fullWidth
-          label="Price (₹)"
+          label="Price (₹) *"
           type="number"
-          value={formData.price}
-          onChange={(e) => handleInputChange('price', parseFloat(e.target.value))}
-          margin="normal"
+          value={formData.price || ''}
+          onChange={e => set('price', parseFloat(e.target.value) || 0)}
+          margin="dense"
           size="small"
           placeholder="Enter amount in INR"
         />
 
-        {/* Payment Terms */}
         <TextField
           fullWidth
-          label="Payment Terms"
+          label="Payment Terms *"
           value={formData.paymentTerms}
-          onChange={(e) => handleInputChange('paymentTerms', e.target.value)}
-          margin="normal"
-          multiline
-          rows={2}
+          onChange={e => set('paymentTerms', e.target.value)}
+          margin="dense"
           size="small"
-          placeholder="e.g., Full payment upfront, 50% on order, 50% on delivery"
+          placeholder="e.g., Full payment upfront / 50% advance, 50% on delivery"
         />
 
-        {/* Delivery/Completion Date */}
         <TextField
           fullWidth
           label={category === 'goods' ? 'Delivery Date' : 'Completion Date'}
           type="date"
           value={formData.deliveryDate}
-          onChange={(e) => handleInputChange('deliveryDate', e.target.value)}
-          margin="normal"
+          onChange={e => set('deliveryDate', e.target.value)}
+          margin="dense"
+          size="small"
           InputLabelProps={{ shrink: true }}
-          size="small"
-        />
-
-        {/* Delivery/Service Address */}
-        <TextField
-          fullWidth
-          label="Delivery/Service Address"
-          value={formData.seller.address}
-          onChange={(e) => handlePartyChange('seller', 'address', e.target.value)}
-          margin="normal"
-          multiline
-          rows={3}
-          size="small"
-          placeholder="Enter complete address with street, city, state, and postal code"
-        />
-
-        {/* Warranty/Guarantees */}
-        <TextField
-          fullWidth
-          label={category === 'goods' ? 'Warranty Details' : 'Guarantees'}
-          value={formData.warranty}
-          onChange={(e) => handleInputChange('warranty', e.target.value)}
-          margin="normal"
-          multiline
-          rows={2}
-          size="small"
-          placeholder={category === 'goods' ? 'e.g., 1 year manufacturer warranty' : 'e.g., 30-day money back guarantee'}
-        />
-
-        {/* Additional Terms */}
-        <TextField
-          fullWidth
-          label="Additional Terms (Optional)"
-          value={formData.additionalTerms}
-          onChange={(e) => handleInputChange('additionalTerms', e.target.value)}
-          margin="normal"
-          multiline
-          rows={2}
-          size="small"
-          placeholder="Add any custom terms or conditions"
         />
       </Card>
 
-      {/* Action Buttons */}
-      <Box sx={{ display: 'flex', gap: 2, mt: 4, mb: 4, justifyContent: 'center', flexWrap: 'wrap' }}>
+      {/* ── Optional fields ── */}
+      <Button
+        onClick={() => setShowOptional(v => !v)}
+        endIcon={<ExpandMoreIcon sx={{ transform: showOptional ? 'rotate(180deg)' : 'none' }} />}
+        sx={{ mb: 1, color: '#059669', fontWeight: 'bold' }}
+        size="small"
+      >
+        {showOptional ? 'Hide' : 'Add'} optional details
+      </Button>
+
+      <Collapse in={showOptional}>
+        <Card sx={{ p: 3, mb: 2 }}>
+          <TextField
+            fullWidth
+            label={category === 'goods' ? 'Condition' : 'Scope of Work'}
+            value={formData.conditions}
+            onChange={e => set('conditions', e.target.value)}
+            margin="dense"
+            size="small"
+            placeholder={category === 'goods' ? 'e.g., New, Used, Refurbished' : 'e.g., What is included/excluded'}
+          />
+          <TextField
+            fullWidth
+            label={category === 'goods' ? 'Warranty' : 'Guarantees'}
+            value={formData.warranty}
+            onChange={e => set('warranty', e.target.value)}
+            margin="dense"
+            size="small"
+            placeholder={category === 'goods' ? 'e.g., 1-year manufacturer warranty' : 'e.g., 30-day money-back'}
+          />
+          <TextField
+            fullWidth
+            label="Additional Terms"
+            value={formData.additionalTerms}
+            onChange={e => set('additionalTerms', e.target.value)}
+            margin="dense"
+            size="small"
+            multiline
+            rows={2}
+            placeholder="Any custom terms or conditions"
+          />
+        </Card>
+      </Collapse>
+
+      {/* ── Action ── */}
+      <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
         <Button
+          fullWidth
           variant="contained"
           color="success"
           size="large"
-          onClick={handleGeneratePreview}
-          sx={{ fontWeight: 'bold', px: 4 }}
+          onClick={handleGenerate}
+          sx={{ fontWeight: 'bold', py: 1.5 }}
         >
-          Generate Contract
+          Generate Contract →
         </Button>
         <Button
           variant="outlined"
-          color="primary"
           size="large"
           onClick={onBack}
-          sx={{ fontWeight: 'bold', px: 4 }}
+          sx={{ px: 3 }}
         >
           Cancel
         </Button>
       </Box>
 
-      {/* Snackbar */}
       <Snackbar
-        open={showSnackbar}
+        open={!!snackbar}
         autoHideDuration={4000}
-        onClose={() => setShowSnackbar(false)}
-        message={snackbarMessage}
+        onClose={() => setSnackbar('')}
+        message={snackbar}
       />
     </Container>
   );
