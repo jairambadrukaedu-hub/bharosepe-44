@@ -1,13 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { FileText, CheckCircle, XCircle, Clock, User, Calendar } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  FileText, CheckCircle, XCircle, Clock, User, Calendar,
+  ChevronDown, ChevronUp, Download, Printer, Shield,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useContracts, Contract } from '@/hooks/use-contracts';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
+
+const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; border: string; dot: string }> = {
+  awaiting_acceptance: {
+    label: 'Awaiting Acceptance',
+    bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-300', dot: 'bg-amber-400',
+  },
+  accepted_awaiting_payment: {
+    label: 'Accepted',
+    bg: 'bg-green-50', text: 'text-green-800', border: 'border-green-300', dot: 'bg-green-500',
+  },
+  rejected: {
+    label: 'Rejected',
+    bg: 'bg-red-50', text: 'text-red-800', border: 'border-red-300', dot: 'bg-red-500',
+  },
+  draft: {
+    label: 'Draft',
+    bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-300', dot: 'bg-gray-400',
+  },
+  expired: {
+    label: 'Expired',
+    bg: 'bg-gray-50', text: 'text-gray-600', border: 'border-gray-300', dot: 'bg-gray-400',
+  },
+};
+
+const isHTML = (str: string) => /<[a-z][\s\S]*>/i.test(str);
 
 interface ContractViewerProps {
   contractId: string;
@@ -15,252 +42,326 @@ interface ContractViewerProps {
 
 export default function ContractViewer({ contractId }: ContractViewerProps) {
   const { user } = useAuth();
-  const { contracts, respondToContract } = useContracts();
-const [contract, setContract] = useState<Contract | null>(null);
-const [responseMessage, setResponseMessage] = useState('');
-const [isResponding, setIsResponding] = useState(false);
-const [loading, setLoading] = useState(true);
-const [isExpanded, setIsExpanded] = useState(false);
-const [hasResponded, setHasResponded] = useState(false);
+  const { contracts, respondToContract, loading: contractsLoading } = useContracts();
+  const [contract, setContract] = useState<Contract | null>(null);
+  const [responseMessage, setResponseMessage] = useState('');
+  const [isResponding, setIsResponding] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [showContract, setShowContract] = useState(false);
+  const [hasResponded, setHasResponded] = useState(false);
+
   useEffect(() => {
-    const foundContract = contracts.find(c => c.id === contractId);
-    setContract(foundContract || null);
+    if (contractsLoading) return;
+    const found = contracts.find(c => c.id === contractId);
+    setContract(found || null);
     setLoading(false);
-  }, [contracts, contractId]);
+  }, [contracts, contractId, contractsLoading]);
 
   const handleResponse = async (action: 'accept' | 'reject') => {
     if (!contract) return;
-
     setIsResponding(true);
-try {
-  await respondToContract(contract.id, action, responseMessage || undefined);
-  // Optimistic local update for instant UI feedback
-  setHasResponded(true);
-  setContract(prev => prev ? {
-    ...prev,
-    status: action === 'accept' ? 'accepted_awaiting_payment' : 'rejected',
-    response_message: responseMessage || prev.response_message,
-    responded_at: new Date().toISOString()
-  } : prev);
-  toast.success(`Contract ${action}ed successfully`);
-  // Contract status will be updated automatically by the hook's real-time subscription
-} catch (error) {
-      console.error('Error responding to contract:', error);
+    try {
+      await respondToContract(contract.id, action, responseMessage || undefined);
+      setHasResponded(true);
+      setContract(prev =>
+        prev
+          ? {
+              ...prev,
+              status: action === 'accept' ? 'accepted_awaiting_payment' : 'rejected',
+              response_message: responseMessage || prev.response_message,
+              responded_at: new Date().toISOString(),
+            }
+          : prev,
+      );
+      toast.success(`Contract ${action === 'accept' ? 'accepted' : 'rejected'} successfully`);
+    } catch (err) {
+      console.error(err);
     } finally {
       setIsResponding(false);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'awaiting_acceptance':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'accepted_awaiting_payment':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'rejected':
-        return 'bg-red-100 text-red-800 border-red-200';
-      case 'expired':
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
+  const handleDownload = () => {
+    if (!contract) return;
+    const content = contract.contract_content || '';
+    const blob = new Blob(
+      [isHTML(content) ? content : `<pre style="font-family:sans-serif;padding:20px">${content}</pre>`],
+      { type: 'text/html' },
+    );
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `contract-${contractId.slice(0, 8)}.html`;
+    a.click();
   };
 
-  // Create a 3-line summary from contract content
-  const getSummary = (content: string) => {
-    const lines = content.split('\n').filter(line => line.trim());
-    return lines.slice(0, 3).join('\n');
+  const handlePrint = () => {
+    if (!contract) return;
+    const w = window.open('', '', 'width=900,height=700');
+    if (w) {
+      w.document.write(contract.contract_content || '');
+      w.document.close();
+      w.print();
+    }
   };
 
   const isRecipient = contract && contract.recipient_id === user?.id;
   const canRespond = isRecipient && contract?.status === 'awaiting_acceptance' && !hasResponded;
+  const statusCfg = contract ? (STATUS_CONFIG[contract.status] ?? STATUS_CONFIG.draft) : STATUS_CONFIG.draft;
 
-  if (loading) {
+  /* ── Loading ── */
+  if (loading || contractsLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div className="w-6 h-6 border-2 border-bharose-primary border-t-transparent rounded-full animate-spin" />
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <div className="w-8 h-8 border-2 border-bharose-primary border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-muted-foreground">Loading contract…</p>
       </div>
     );
   }
 
+  /* ── Not found ── */
   if (!contract) {
     return (
-      <div className="text-center py-8">
-        <FileText className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
-        <p className="text-muted-foreground">Contract not found</p>
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-4">
+        <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+          <FileText className="h-8 w-8 text-muted-foreground/50" />
+        </div>
+        <p className="font-medium text-muted-foreground">Contract not found</p>
+        <p className="text-xs text-muted-foreground/70">It may still be loading or the link may be invalid.</p>
       </div>
     );
   }
+
+  const html = contract.contract_content || '';
+  const contractIsHTML = isHTML(html);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
+      transition={{ duration: 0.3 }}
     >
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <FileText className="h-6 w-6 text-bharose-primary" />
-          <div>
-            <h3 className="text-lg font-semibold">Contract Details</h3>
-            <p className="text-sm text-muted-foreground">
-              {contract.transaction?.title || 'Transaction Contract'}
-            </p>
-          </div>
-        </div>
-        
-        <Badge className={`${getStatusColor(contract.status)} border`}>
-          {contract.status.charAt(0).toUpperCase() + contract.status.slice(1)}
-        </Badge>
+      {/* ── Status Banner ── */}
+      <div className={`px-4 py-3 ${statusCfg.bg} border-b ${statusCfg.border} flex items-center gap-2`}>
+        <span className={`w-2 h-2 rounded-full ${statusCfg.dot} shrink-0`} />
+        <span className={`text-sm font-semibold ${statusCfg.text}`}>{statusCfg.label}</span>
+        {contract.responded_at && (
+          <span className="text-xs text-muted-foreground ml-auto">
+            {new Date(contract.responded_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </span>
+        )}
       </div>
 
-      {/* Contract Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="flex items-center gap-2">
-          <User className="h-4 w-4 text-muted-foreground" />
-          <div>
-            <p className="text-xs text-muted-foreground">Created by</p>
-            <p className="text-sm font-medium">{contract.creator_name}</p>
+      <div className="p-4 space-y-5">
+        {/* ── Title & action buttons ── */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-bharose-primary/10 flex items-center justify-center shrink-0">
+              <Shield className="h-5 w-5 text-bharose-primary" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold leading-tight">
+                {contract.transaction?.title || 'Contract'}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                ID: {contract.id.slice(0, 8).toUpperCase()}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={handleDownload}
+              className="p-2 rounded-lg border hover:bg-muted transition-colors"
+              title="Download contract"
+            >
+              <Download className="h-4 w-4 text-muted-foreground" />
+            </button>
+            <button
+              onClick={handlePrint}
+              className="p-2 rounded-lg border hover:bg-muted transition-colors"
+              title="Print contract"
+            >
+              <Printer className="h-4 w-4 text-muted-foreground" />
+            </button>
           </div>
         </div>
-        
-        {contract.recipient_name && (
-          <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-muted-foreground" />
+
+        {/* ── Party cards ── */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl border bg-card p-3 space-y-1">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Created by</p>
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-bharose-primary/15 flex items-center justify-center text-xs font-bold text-bharose-primary">
+                {(contract.creator_name || 'U')[0].toUpperCase()}
+              </div>
+              <p className="text-sm font-semibold truncate">{contract.creator_name || '—'}</p>
+            </div>
+          </div>
+          {contract.recipient_name && (
+            <div className="rounded-xl border bg-card p-3 space-y-1">
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Sent to</p>
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center text-xs font-bold text-purple-700">
+                  {contract.recipient_name[0].toUpperCase()}
+                </div>
+                <p className="text-sm font-semibold truncate">{contract.recipient_name}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Date / amount row */}
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Calendar className="h-3.5 w-3.5" />
+            {new Date(contract.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </span>
+          {contract.amount && (
+            <span className="flex items-center gap-1 font-semibold text-foreground">
+              ₹{Number(contract.amount).toLocaleString('en-IN')}
+            </span>
+          )}
+        </div>
+
+        {/* ── Contract Document (collapsible) ── */}
+        <div className="rounded-xl border overflow-hidden">
+          <button
+            onClick={() => setShowContract(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-muted/40 hover:bg-muted/70 transition-colors text-sm font-medium"
+          >
+            <span className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-bharose-primary" />
+              View Contract Document
+            </span>
+            {showContract ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+
+          <AnimatePresence>
+            {showContract && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <div className="border-t">
+                  {contractIsHTML ? (
+                    <div
+                      className="w-full overflow-auto bg-white"
+                      style={{ maxHeight: '70vh' }}
+                      dangerouslySetInnerHTML={{ __html: html }}
+                    />
+                  ) : (
+                    <pre className="p-4 text-xs leading-relaxed whitespace-pre-wrap text-foreground overflow-auto bg-white" style={{ maxHeight: '70vh' }}>
+                      {html}
+                    </pre>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Response note */}
+        {contract.response_message && (
+          <div className="rounded-xl border p-4 space-y-1 bg-muted/30">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Response note</p>
+            <p className="text-sm">{contract.response_message}</p>
+          </div>
+        )}
+
+        {/* ── Recipient: Accept / Reject ── */}
+        {canRespond && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-xl border-2 border-bharose-primary/30 bg-bharose-primary/5 p-4 space-y-4"
+          >
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-bharose-primary" />
+              <h4 className="font-semibold text-sm">Your Response Required</h4>
+            </div>
+            <Textarea
+              value={responseMessage}
+              onChange={e => setResponseMessage(e.target.value)}
+              placeholder="Add a note (optional)…"
+              className="resize-none text-sm bg-white"
+              rows={3}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                onClick={() => handleResponse('reject')}
+                disabled={isResponding}
+                variant="outline"
+                className="border-red-300 text-red-600 hover:bg-red-50 font-semibold"
+              >
+                {isResponding ? (
+                  <span className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-2" />
+                ) : (
+                  <XCircle className="h-4 w-4 mr-2" />
+                )}
+                Reject
+              </Button>
+              <Button
+                onClick={() => handleResponse('accept')}
+                disabled={isResponding}
+                className="bg-green-600 hover:bg-green-700 font-semibold"
+              >
+                {isResponding ? (
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                ) : (
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                )}
+                Accept Contract
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Sender: waiting notice ── */}
+        {!isRecipient && contract.status === 'awaiting_acceptance' && (
+          <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <Clock className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs text-muted-foreground">Sent to</p>
-              <p className="text-sm font-medium">{contract.recipient_name}</p>
+              <p className="text-sm font-semibold text-amber-800">Waiting for acceptance</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                A notification was sent to <strong>{contract.recipient_name || 'the other party'}</strong>. You'll be notified when they respond.
+              </p>
             </div>
           </div>
         )}
-        
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-muted-foreground" />
-          <div>
-            <p className="text-xs text-muted-foreground">Created</p>
-            <p className="text-sm font-medium">
-              {new Date(contract.created_at).toLocaleDateString()}
-            </p>
-          </div>
-        </div>
-        
-        {contract.responded_at && (
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground" />
+
+        {/* ── Accepted ── */}
+        {contract.status === 'accepted_awaiting_payment' && (
+          <div className="flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+            <CheckCircle className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs text-muted-foreground">Responded</p>
-              <p className="text-sm font-medium">
-                {new Date(contract.responded_at).toLocaleDateString()}
+              <p className="text-sm font-semibold text-green-800">Contract accepted!</p>
+              <p className="text-xs text-green-700 mt-0.5">
+                {isRecipient
+                  ? 'You accepted this contract. The other party has been notified.'
+                  : `${contract.recipient_name || 'The other party'} accepted this contract.`}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Rejected ── */}
+        {contract.status === 'rejected' && (
+          <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <XCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-red-800">Contract rejected</p>
+              <p className="text-xs text-red-700 mt-0.5">
+                {isRecipient
+                  ? 'You rejected this contract.'
+                  : `${contract.recipient_name || 'The other party'} rejected this contract.`}
+                {contract.response_message && ` Reason: "${contract.response_message}"`}
               </p>
             </div>
           </div>
         )}
       </div>
-
-      {/* Contract Content (collapsed summary by default) */}
-      <div className="space-y-3">
-        <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg border">
-          <p className="whitespace-pre-wrap">
-            {contract.contract_content ? getSummary(contract.contract_content) : ''}
-          </p>
-          {contract.contract_content && contract.contract_content.split('\n').filter(line => line.trim()).length > 3 && (
-            <p className="text-xs text-muted-foreground mt-1 italic">
-              ...{contract.contract_content.split('\n').filter(line => line.trim()).length - 3} more lines
-            </p>
-          )}
-        </div>
-
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="h-8 px-2 text-xs"
-        >
-          {isExpanded ? 'Hide Full Contract' : 'View Full Contract'}
-        </Button>
-
-        {isExpanded && (
-          <div className="space-y-4">
-            <div>
-              <Label className="text-sm font-medium">Contract Details</Label>
-              <div className="mt-2 p-4 bg-muted/50 rounded-lg border">
-                <p className="text-sm whitespace-pre-wrap">{contract.contract_content}</p>
-              </div>
-            </div>
-
-            {contract.terms && (
-              <div>
-                <Label className="text-sm font-medium">Additional Terms</Label>
-                <div className="mt-2 p-4 bg-muted/50 rounded-lg border">
-                  <p className="text-sm whitespace-pre-wrap">{contract.terms}</p>
-                </div>
-              </div>
-            )}
-
-            {contract.response_message && (
-              <div>
-                <Label className="text-sm font-medium">Response Message</Label>
-                <div className="mt-2 p-4 bg-muted/50 rounded-lg border">
-                  <p className="text-sm whitespace-pre-wrap">{contract.response_message}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Response Section for Recipients */}
-      {canRespond && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-4 border-t pt-6"
-        >
-          <h4 className="font-medium">Respond to Contract</h4>
-          
-          <div className="space-y-3">
-            <Label htmlFor="response-message">Response Message (Optional)</Label>
-            <Textarea
-              id="response-message"
-              value={responseMessage}
-              onChange={(e) => setResponseMessage(e.target.value)}
-              placeholder="Add any comments or feedback..."
-              className="resize-none"
-              rows={3}
-            />
-          </div>
-
-          <div className="flex gap-3">
-            <Button
-              onClick={() => handleResponse('accept')}
-              disabled={isResponding}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-            >
-              {isResponding ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <CheckCircle className="h-4 w-4" />
-              )}
-              Accept Contract
-            </Button>
-            
-            <Button
-              variant="outline"
-              onClick={() => handleResponse('reject')}
-              disabled={isResponding}
-              className="flex items-center gap-2 border-red-200 text-red-600 hover:bg-red-50"
-            >
-              {isResponding ? (
-                <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <XCircle className="h-4 w-4" />
-              )}
-              Reject Contract
-            </Button>
-          </div>
-        </motion.div>
-      )}
     </motion.div>
   );
 }
