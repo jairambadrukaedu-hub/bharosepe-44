@@ -1,13 +1,16 @@
 import { motion, useScroll, useTransform } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Play } from "lucide-react";
 import { useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import AnimatedButton from "./ui/animated-button";
+import { Button } from "@/components/ui/button";
 
 interface CinematicHeroProps {
   onEarlyAccessClick?: () => void;
 }
 
 const CinematicHero = ({ onEarlyAccessClick }: CinematicHeroProps) => {
+  const navigate = useNavigate();
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: heroRef,
@@ -94,13 +97,14 @@ const CinematicHero = ({ onEarlyAccessClick }: CinematicHeroProps) => {
             </motion.p>
           </div>
 
-          {/* CTA Button */}
+          {/* CTA Buttons */}
           <motion.div
-            className="flex justify-center"
+            className="flex flex-col sm:flex-row items-center justify-center gap-4"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 1.2, ease: [0.25, 0.1, 0.25, 1] }}
           >
+            {/* Primary: Try the App */}
             <motion.div
               animate={{ y: [0, -3, 0] }}
               transition={{ duration: 4, repeat: Infinity, ease: [0.25, 0.1, 0.25, 1] }}
@@ -108,7 +112,7 @@ const CinematicHero = ({ onEarlyAccessClick }: CinematicHeroProps) => {
               <AnimatedButton
                 variant="primary"
                 size="lg"
-                onClick={onEarlyAccessClick}
+                onClick={() => navigate('/auth')}
                 className="relative group overflow-hidden bg-primary text-primary-foreground shadow-soft"
                 style={{ boxShadow: "0 8px 32px hsl(var(--primary) / 0.3)" }}
               >
@@ -118,11 +122,22 @@ const CinematicHero = ({ onEarlyAccessClick }: CinematicHeroProps) => {
                   transition={{ duration: 2.5, repeat: Infinity, ease: [0.25, 0.1, 0.25, 1] }}
                 />
                 <span className="relative z-10 flex items-center gap-2 font-semibold">
-                  Join Early Access
+                  <Play className="w-4 h-4" />
+                  Try the App
                   <ArrowRight className="w-5 h-5" />
                 </span>
               </AnimatedButton>
             </motion.div>
+
+            {/* Secondary: Join Waitlist */}
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={onEarlyAccessClick}
+              className="font-semibold border-border hover:bg-muted"
+            >
+              Join Waitlist
+            </Button>
           </motion.div>
 
           {/* Coming Soon Badge */}

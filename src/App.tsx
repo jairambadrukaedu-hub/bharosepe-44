@@ -35,6 +35,8 @@ import OnboardingPage from "./pages/OnboardingPage";
 import Notifications from "./pages/Notifications";
 import Help from "./pages/Help";
 import Index from "./pages/Index";
+import Payment from "./pages/Payment";
+import Listings from "./pages/Listings";
 
 const queryClient = new QueryClient();
 
@@ -80,6 +82,8 @@ const AppContent = () => {
         <Route path="/app/notifications" element={<Notifications />} />
         <Route path="/app/help" element={<Help />} />
         <Route path="/app/index" element={<Index />} />
+        <Route path="/app/payment" element={<Payment />} />
+        <Route path="/app/listings" element={<Listings />} />
 
         {/* Application Routes (without /app prefix — used by internal navigation) */}
         <Route path="/auth" element={<AuthPage />} />
@@ -99,7 +103,8 @@ const AppContent = () => {
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/help" element={<Help />} />
-        <Route path="/payment" element={<TransactionSetup />} />
+        <Route path="/payment" element={<Payment />} />
+        <Route path="/listings" element={<Listings />} />
 
         {/* Fallback */}
         <Route path="*" element={<NotFound />} />
