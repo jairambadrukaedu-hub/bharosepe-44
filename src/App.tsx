@@ -8,6 +8,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/components/Landing/ThemeProvider";
 import ScrollToTop from "@/components/Landing/ScrollToTop";
 import { useAuth } from '@/hooks/use-auth';
+import { UserModeProvider } from '@/components/UserModeContext';
 
 // Landing Pages
 import Layout from "@/components/Landing/Layout";
@@ -116,11 +117,13 @@ const AppContent = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AppContent />
-      </TooltipProvider>
+      <UserModeProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <AppContent />
+        </TooltipProvider>
+      </UserModeProvider>
     </ThemeProvider>
   </QueryClientProvider>
 );
