@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, Navigate } from 'react-router-dom';
 import BottomNavigation from '@/components/BottomNavigation';
 import { useTransactions } from '@/hooks/use-transactions';
@@ -16,7 +16,7 @@ import RecentDealsSection from '@/components/RecentDealsSection';
 import ModernSavedParties from '@/components/ModernSavedParties';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ShoppingBag, Store } from 'lucide-react';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -113,6 +113,8 @@ const Dashboard = () => {
   // Get pending contracts for current user based on role
   const pendingContracts = userMode === 'Buyer' ? getPendingContractsAsBuyer() : getPendingContractsAsSeller();
 
+  const isBuyer = userMode === 'Buyer';
+
   return (
     <div className="bharose-container pb-20 bg-background">
       <motion.div
@@ -126,6 +128,42 @@ const Dashboard = () => {
           userEmail={user?.email}
           avatarUrl={user?.user_metadata?.avatar_url}
         />
+
+        {/* Role Mode Banner */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={userMode}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.25 }}
+            className={`mt-3 flex items-center gap-3 rounded-xl px-4 py-3 ${
+              isBuyer
+                ? 'bg-primary/10 border border-primary/20'
+                : 'bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800'
+            }`}
+          >
+            <div className={`p-2 rounded-full ${
+              isBuyer ? 'bg-primary/15' : 'bg-emerald-100 dark:bg-emerald-900'
+            }`}>
+              {isBuyer
+                ? <ShoppingBag size={16} className="text-primary" />
+                : <Store size={16} className="text-emerald-600 dark:text-emerald-400" />}
+            </div>
+            <div className="flex-1">
+              <p className={`text-sm font-semibold ${
+                isBuyer ? 'text-primary' : 'text-emerald-700 dark:text-emerald-300'
+              }`}>
+                {isBuyer ? 'Buyer Mode' : 'Seller Mode'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {isBuyer
+                  ? 'Viewing your purchases & contracts sent to sellers'
+                  : 'Viewing your sales & contracts received from buyers'}
+              </p>
+            </div>
+          </motion.div>
+        </AnimatePresence>
 
         {/* Pending Contracts Alert */}
         {pendingContracts.length > 0 && (
@@ -158,41 +196,52 @@ const Dashboard = () => {
           </motion.div>
         )}
 
-        {/* Modern Escrow Balance Card */}
-        <ModernEscrowCard 
-          userMode={userMode}
-          balance={escrowBalance}
-          onViewAll={() => navigate('/transactions', { state: { userMode } })}
-        />
-        
-        {/* Role-based Quick Actions */}
-        <RoleBasedQuickActions 
-          userMode={userMode}
-          onStartTransaction={() => navigate('/transaction-setup')}
-          onViewTransactions={() => navigate('/transactions', { state: { userMode } })}
-          onViewDisputes={() => navigate('/disputes')}
-          onViewSavedParties={() => navigate('/transactions')} // Could be dedicated saved parties page
-          disputeCount={getActiveDisputes(userMode).length}
-        />
-        
-        {/* Recent Deals Section */}
-        <RecentDealsSection 
-          userMode={userMode}
-          transactions={recentTransactions}
-          onViewAll={() => navigate('/transactions', { state: { userMode } })}
-          onStartNew={() => navigate('/transaction-setup')}
-        />
-        
-        {/* Modern Saved Parties */}
-        <ModernSavedParties 
-          userMode={userMode}
-          parties={[]} // Could be fetched from actual data
-          onViewAll={() => navigate('/transactions')} // Could be dedicated saved parties page
-          onContactParty={(partyId) => navigate('/transaction-setup', { state: { selectedParty: partyId } })}
-        />
-        
-        {/* Dashboard Analytics */}
-        <DashboardAnalytics userMode={userMode} />
+        {/* Role-keyed content — animates when mode switches */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={userMode}
+            initial={{ opacity: 0, x: isBuyer ? -20 : 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: isBuyer ? 20 : -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            {/* Modern Escrow Balance Card */}
+            <ModernEscrowCard 
+              userMode={userMode}
+              balance={escrowBalance}
+              onViewAll={() => navigate('/transactions', { state: { userMode } })}
+            />
+            
+            {/* Role-based Quick Actions */}
+            <RoleBasedQuickActions 
+              userMode={userMode}
+              onStartTransaction={() => navigate('/transaction-setup')}
+              onViewTransactions={() => navigate('/transactions', { state: { userMode } })}
+              onViewDisputes={() => navigate('/disputes')}
+              onViewSavedParties={() => navigate('/transactions')}
+              disputeCount={getActiveDisputes(userMode).length}
+            />
+            
+            {/* Recent Deals Section */}
+            <RecentDealsSection 
+              userMode={userMode}
+              transactions={recentTransactions}
+              onViewAll={() => navigate('/transactions', { state: { userMode } })}
+              onStartNew={() => navigate('/transaction-setup')}
+            />
+            
+            {/* Modern Saved Parties */}
+            <ModernSavedParties 
+              userMode={userMode}
+              parties={[]}
+              onViewAll={() => navigate('/transactions')}
+              onContactParty={(partyId) => navigate('/transaction-setup', { state: { selectedParty: partyId } })}
+            />
+            
+            {/* Dashboard Analytics */}
+            <DashboardAnalytics userMode={userMode} />
+          </motion.div>
+        </AnimatePresence>
       </motion.div>
       
       <BottomNavigation userMode={userMode} />
