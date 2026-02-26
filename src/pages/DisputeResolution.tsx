@@ -12,6 +12,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DisputeResolutionProposals } from '@/components/DisputeResolutionProposals';
+import { DisputeResolutionActions } from '@/components/DisputeResolutionActions';
+import { ResolutionBreakdown } from '@/components/ResolutionBreakdown';
 
 
 const DisputeResolution = () => {
@@ -30,6 +33,8 @@ const DisputeResolution = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const userRole: 'buyer' | 'seller' = transaction?.buyer_id === user?.id ? 'buyer' : 'seller';
 
   const downloadEvidence = async (fileName: string) => {
     try {
@@ -130,7 +135,7 @@ const DisputeResolution = () => {
   return (
     <div className="bharose-container h-screen flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 pb-4 border-b">
+      <div className="flex items-center justify-between mb-4 pb-4 border-b flex-shrink-0">
         <div className="flex items-center">
           <button 
             onClick={() => navigate(-1)}
@@ -152,12 +157,15 @@ const DisputeResolution = () => {
         </button>
       </div>
 
-      {/* Dispute Status and Details */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-bharose-error/10 border border-bharose-error/20 rounded-lg p-4 mb-4"
-      >
+      {/* Scrollable top section: dispute info + settlement panels */}
+      <div className="flex-shrink-0 overflow-y-auto max-h-[45vh] space-y-3 mb-2 pr-1">
+
+        {/* Dispute Status and Details */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-bharose-error/10 border border-bharose-error/20 rounded-lg p-4"
+        >
         <div className="flex items-center mb-2">
           <AlertTriangle size={20} className="text-bharose-error mr-2" />
           <span className="font-medium text-bharose-error">Dispute Active</span>
@@ -193,6 +201,36 @@ const DisputeResolution = () => {
           </div>
         )}
       </motion.div>
+
+      {/* Resolution breakdown when dispute is resolved */}
+      {transaction.status === 'completed' && transaction.resolution_breakdown && (
+        <ResolutionBreakdown
+          resolutionData={transaction.resolution_breakdown}
+          userRole={userRole}
+        />
+      )}
+
+      {/* Settlement Proposals — peer-to-peer partial/full payment settlement */}
+      {dispute && transaction.status !== 'completed' && (
+        <DisputeResolutionProposals
+          dispute={dispute}
+          transaction={transaction}
+          userRole={userRole}
+          onResolutionComplete={() => navigate('/dashboard')}
+        />
+      )}
+
+      {/* Unilateral Actions — release or refund directly */}
+      {dispute && transaction.status !== 'completed' && (
+        <DisputeResolutionActions
+          dispute={dispute}
+          transaction={transaction}
+          userRole={userRole}
+          onResolutionComplete={() => navigate('/dashboard')}
+        />
+      )}
+
+      </div>{/* end scrollable top section */}
 
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto space-y-4 mb-4 px-4">

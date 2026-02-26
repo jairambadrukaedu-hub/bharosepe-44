@@ -216,7 +216,7 @@ const TransactionStatus = () => {
   };
   
   const handleRaiseDispute = () => {
-    navigate(`/dispute/${id}`, { state: { transactionId: id, userMode } });
+    navigate(`/raise-dispute/${id}`, { state: { transactionId: id, userMode } });
   };
 
   const handleHomeNavigation = () => {

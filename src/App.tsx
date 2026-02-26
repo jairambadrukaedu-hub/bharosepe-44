@@ -38,6 +38,7 @@ import Help from "./pages/Help";
 import Index from "./pages/Index";
 import Payment from "./pages/Payment";
 import Listings from "./pages/Listings";
+import Dispute from "./pages/Dispute";
 
 const queryClient = new QueryClient();
 
@@ -85,6 +86,8 @@ const AppContent = () => {
         <Route path="/app/index" element={<Index />} />
         <Route path="/app/payment" element={<Payment />} />
         <Route path="/app/listings" element={<Listings />} />
+        <Route path="/app/raise-dispute/:id" element={<Dispute />} />
+        <Route path="/app/dispute-resolution/:id" element={<DisputeResolution />} />
 
         {/* Application Routes (without /app prefix — used by internal navigation) */}
         <Route path="/auth" element={<AuthPage />} />
@@ -97,6 +100,8 @@ const AppContent = () => {
         <Route path="/transaction-status/:id" element={<TransactionStatus />} />
         <Route path="/disputes" element={<Disputes />} />
         <Route path="/dispute/:id" element={<DisputeResolution />} />
+        <Route path="/raise-dispute/:id" element={<Dispute />} />
+        <Route path="/dispute-resolution/:id" element={<DisputeResolution />} />
         <Route path="/contracts" element={<Contracts />} />
         <Route path="/contract/:contractId" element={<ContractDetail />} />
         <Route path="/agreement-sent" element={<AgreementSent />} />
